@@ -102,6 +102,17 @@ class FakeProvider(LLMProvider):
         return {"ok": True}, Usage(1, 1)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_env(monkeypatch):
+    """Ignore keys/models from the developer's real .env so tests behave the same everywhere."""
+    from backend.providers import PROVIDERS
+
+    for spec in PROVIDERS.values():
+        if spec.env_var:
+            monkeypatch.delenv(spec.env_var, raising=False)
+        monkeypatch.delenv(f"{spec.id.upper()}_MODEL", raising=False)
+
+
 @pytest.fixture
 def llm_calls() -> dict:
     return {}

@@ -43,10 +43,13 @@ def test_api_key_hidden_from_repr():
     assert "sk-secret" not in repr(LLMConfig("openai", "gpt", "sk-secret"))
 
 
-def test_env_key_fallback(monkeypatch):
+def test_env_key_and_model_fallback(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "from-env")
-    assert resolve_config(LLMConfig("openai", "gpt")).api_key == "from-env"
-    assert resolve_config(LLMConfig("openai", "gpt", "pasted")).api_key == "pasted"
+    monkeypatch.setenv("OPENAI_MODEL", "env-model")
+    resolved = resolve_config(LLMConfig("openai", ""))
+    assert (resolved.api_key, resolved.model) == ("from-env", "env-model")
+    pasted = resolve_config(LLMConfig("openai", "chosen", "pasted"))
+    assert (pasted.api_key, pasted.model) == ("pasted", "chosen")
 
 
 def test_create_provider_validation(monkeypatch):

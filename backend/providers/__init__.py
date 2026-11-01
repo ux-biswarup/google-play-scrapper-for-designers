@@ -22,8 +22,12 @@ class ProviderSpec:
     def env_key(self) -> str | None:
         return os.getenv(self.env_var) if self.env_var else None
 
+    def env_model(self) -> str | None:
+        """Optional preselected model, e.g. OPENAI_MODEL in .env."""
+        return (os.getenv(f"{self.id.upper()}_MODEL") or "").strip() or None
+
     def to_dict(self) -> dict:
-        return asdict(self) | {"has_env_key": bool(self.env_key())}
+        return asdict(self) | {"has_env_key": bool(self.env_key()), "default_model": self.env_model()}
 
 
 PROVIDERS: dict[str, ProviderSpec] = {
@@ -48,13 +52,16 @@ PROVIDERS: dict[str, ProviderSpec] = {
 
 
 def resolve_config(config: LLMConfig) -> LLMConfig:
-    """Fill in the key from the environment when the user didn't paste one in the interface."""
+    """Fill in the key and model from the environment when the user didn't set them in the interface."""
     spec = PROVIDERS.get(config.provider)
     if spec is None:
         raise LLMError(f"Unknown provider '{config.provider}'.", fatal=True)
-    if config.api_key or not spec.env_key():
-        return config
-    return LLMConfig(config.provider, config.model, spec.env_key(), config.base_url)
+    return LLMConfig(
+        config.provider,
+        config.model or spec.env_model() or "",
+        config.api_key or spec.env_key(),
+        config.base_url,
+    )
 
 
 def create_provider(config: LLMConfig) -> LLMProvider:

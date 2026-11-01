@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 
 from ..context import AppContext, get_ctx
 from ..models import Run, RunStatus
+from ..providers import resolve_config
 from ..schemas import EstimateIn, RunCreate, RunOut
 from ..services.pipeline import RunRequest
 from ..services.play_store import PAGE_SIZE, parse_store_id
@@ -49,7 +50,7 @@ def estimate(body: EstimateIn, ctx: AppContext = Depends(get_ctx)) -> dict:
 @router.post("", status_code=201)
 async def create_run(body: RunCreate, ctx: AppContext = Depends(get_ctx)) -> RunOut:
     store_id = parse_store_id(body.app)
-    llm = body.llm.to_config()
+    llm = resolve_config(body.llm.to_config())
     if not llm.model:
         raise HTTPException(400, "Choose an AI model.")
     # Fail fast on missing keys/unknown providers before creating the run.

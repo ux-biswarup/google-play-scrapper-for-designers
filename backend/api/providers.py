@@ -5,7 +5,7 @@ import time
 from fastapi import APIRouter, Depends
 
 from ..context import AppContext, get_ctx
-from ..providers import PROVIDERS, LLMError
+from ..providers import PROVIDERS, LLMError, resolve_config
 from ..schemas import LLMConfigIn, TestConnectionIn
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -32,7 +32,7 @@ async def list_models(body: LLMConfigIn, ctx: AppContext = Depends(get_ctx)) -> 
 @router.post("/test")
 async def test_connection(body: TestConnectionIn, ctx: AppContext = Depends(get_ctx)) -> dict:
     """Send a tiny structured request to confirm the key and model both work."""
-    config = body.to_config()
+    config = resolve_config(body.to_config())
     if not config.model:
         raise LLMError("Choose a model first.", fatal=True)
     provider = ctx.provider_factory(config)
