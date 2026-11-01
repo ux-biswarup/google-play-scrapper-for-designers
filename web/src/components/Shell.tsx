@@ -7,7 +7,6 @@ import { api, type Run } from "../lib/api";
 import { flag, plural, relativeTime } from "../lib/format";
 import { highlightParts, searchRuns } from "../lib/runSearch";
 import { useConnection, useTheme } from "../lib/settings";
-import { AUTHOR } from "../lib/author";
 import { AuthorAvatar } from "../pages/About";
 import { cx } from "./ui";
 
@@ -446,12 +445,12 @@ export function Shell() {
               <Label hidden={collapsed}>{themeLabel}</Label>
             </button>
           </RailTip>
-          <RailTip on={collapsed} label="About Review Insights" detail={`Made by ${AUTHOR.name}`}>
+          <RailTip on={collapsed} label="About">
             <NavLink to="/about" className={({ isActive }) => navRow(isActive)}>
               <span className={slot}>
                 <AuthorAvatar size={22} />
               </span>
-              <Label hidden={collapsed}>Made by {AUTHOR.name}</Label>
+              <Label hidden={collapsed}>About</Label>
             </NavLink>
           </RailTip>
         </div>

@@ -325,7 +325,9 @@ def client(llm_calls, provider_failure, tmp_path):
 
     app = create_app(
         Settings(
-            database_url="sqlite://",
+            # A file database like the real app: one connection per thread. A shared in-memory connection
+            # breaks when a request reads while the background job is committing.
+            database_url=f"sqlite:///{tmp_path / 'test.db'}",
             data_dir=tmp_path,
             batch_size=10,
             llm_concurrency=3,

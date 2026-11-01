@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Bug, ExternalLink, Globe, Star } from "lucide-react";
 import { AUTHOR, REPO } from "../lib/author";
 
@@ -19,30 +19,43 @@ function LinkedinMark({ className }: { className?: string }) {
   );
 }
 
-/** The author's photo, or initials when offline. */
+/**
+ * An illustrated portrait of the author (dark hair, beard, brown jacket), drawn inline instead of a real photo.
+ * Works offline and in both themes.
+ */
 export function AuthorAvatar({ size = 32, className }: { size?: number; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  const initials = AUTHOR.name
-    .split(" ")
-    .map((w) => w[0])
-    .join("");
-  return failed ? (
-    <span
-      aria-hidden
-      style={{ width: size, height: size, fontSize: size * 0.38 }}
-      className={`grid shrink-0 place-items-center rounded-full bg-soft font-semibold text-muted ${className ?? ""}`}
-    >
-      {initials}
-    </span>
-  ) : (
-    <img
-      src={AUTHOR.avatar}
-      alt=""
+  return (
+    <svg
+      viewBox="0 0 64 64"
       width={size}
       height={size}
-      onError={() => setFailed(true)}
-      className={`shrink-0 rounded-full border border-line object-cover ${className ?? ""}`}
-    />
+      aria-hidden
+      className={`shrink-0 overflow-hidden rounded-full ${className ?? ""}`}
+    >
+      <circle cx="32" cy="32" r="32" fill="#cfdcec" />
+      {/* jacket and shirt */}
+      <path d="M8 64c1.5-11 9-17 24-17s22.5 6 24 17z" fill="#8b5a3c" />
+      <path d="M25 47.5 32 56l7-8.5c-2-.4-4.4-.6-7-.6s-5 .2-7 .6z" fill="#e9e4dc" />
+      <path d="M24.5 47.6 29 64h-4l-4.5-15.2zM39.5 47.6 35 64h4l4.5-15.2z" fill="#6f4530" />
+      {/* neck and ears */}
+      <path d="M27 40h10v9a5 5 0 0 1-10 0z" fill="#b97d55" />
+      <ellipse cx="18.6" cy="30" rx="2.6" ry="3.6" fill="#c68a60" />
+      <ellipse cx="45.4" cy="30" rx="2.6" ry="3.6" fill="#c68a60" />
+      {/* face */}
+      <path d="M19.5 27c0-9 5.6-14.5 12.5-14.5S44.5 18 44.5 27v4.5c0 7.5-5.6 13-12.5 13s-12.5-5.5-12.5-13z" fill="#d29a6e" />
+      {/* hair */}
+      <path d="M18.6 28.5c-1.8-11 4-18 13.4-18 8 0 14.6 4.6 13.4 18-1.2-5-3.3-8.2-6.4-9.6-3.6 2-9.6 3-15.4 1.6-2.4 1.6-4 4.4-5 8z" fill="#2a211c" />
+      {/* beard and moustache */}
+      <path d="M19.8 31c.6 8 5.6 13.6 12.2 13.6S43.6 39 44.2 31c-1.4 3.4-3 5.2-5 5.6-1.8-1.6-4.2-2.2-7.2-2.2s-5.4.6-7.2 2.2c-2-.4-3.6-2.2-5-5.6z" fill="#2f2620" />
+      <path d="M27.2 36.6c1.4-1.2 3-1.6 4.8-1.6s3.4.4 4.8 1.6c-1.6.4-3.2.6-4.8.6s-3.2-.2-4.8-.6z" fill="#2a211c" />
+      <path d="M29.4 39.4c1.6.8 3.6.8 5.2 0" stroke="#e7b48c" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+      {/* eyes and brows */}
+      <circle cx="26.4" cy="28.4" r="1.5" fill="#2a211c" />
+      <circle cx="37.6" cy="28.4" r="1.5" fill="#2a211c" />
+      <path d="M23.8 25.2c1.4-1 3.4-1.2 5-.6M35.2 24.6c1.6-.6 3.6-.4 5 .6" stroke="#2a211c" strokeWidth="1.3" strokeLinecap="round" fill="none" />
+      {/* nose */}
+      <path d="M32 29.5v3.2c0 .6-.6 1-1.4 1" stroke="#b37a52" strokeWidth="1.1" strokeLinecap="round" fill="none" />
+    </svg>
   );
 }
 
