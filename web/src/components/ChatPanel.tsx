@@ -13,7 +13,6 @@ import {
   Pencil,
   Plus,
   ScanSearch,
-  Sparkles,
   Square,
   SquarePen,
   Trash2,
@@ -22,6 +21,7 @@ import {
 import { chatApi, type ChatEvent, type ChatSession, type ChatTurn, type CitedReview, type Run } from "../lib/api";
 import { relativeTime, shortDate } from "../lib/format";
 import { toLLMConfig, useConnection } from "../lib/settings";
+import { AppIcon } from "./Shell";
 import { Notice, Stars, cx } from "./ui";
 
 const CITATION = /\[\[r:([^\]\s]+)\]\]/g;
@@ -486,16 +486,15 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
   const over = draft.length > MAX_CHARS;
 
   return (
-    <aside aria-label="Assistant" className="flex h-full flex-col bg-panel">
+    <aside aria-label={`Assistant for ${appName}`} className="flex h-full flex-col bg-panel">
       <header className="border-b border-line">
         <div className="flex items-center gap-1 px-4 pt-3 pb-2">
-          <div className="min-w-0 flex-1">
-            <h2 className="flex items-center gap-1.5 font-semibold">
-              <Sparkles className="size-4 text-muted" aria-hidden /> Assistant
-            </h2>
-            <p className="truncate text-xs text-muted">
-              {appName}, {run.review_count} reviews
-            </p>
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <AppIcon src={run.app.icon_url} title={appName} size={32} />
+            <div className="min-w-0">
+              <h2 className="truncate font-semibold leading-tight">{appName}</h2>
+              <p className="truncate text-xs text-muted">{run.review_count} reviews</p>
+            </div>
           </div>
           <button
             onClick={() => setView((v) => (v === "history" ? "chat" : "history"))}
