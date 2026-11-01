@@ -11,7 +11,6 @@ import {
   Loader2,
   MessageSquare,
   Pencil,
-  Plus,
   ScanSearch,
   Square,
   SquarePen,
@@ -21,7 +20,6 @@ import {
 import { chatApi, type ChatEvent, type ChatSession, type ChatTurn, type CitedReview, type Run } from "../lib/api";
 import { relativeTime, shortDate } from "../lib/format";
 import { toLLMConfig, useConnection } from "../lib/settings";
-import { AppIcon } from "./Shell";
 import { Notice, Stars, cx } from "./ui";
 
 const CITATION = /\[\[r:([^\]\s]+)\]\]/g;
@@ -282,6 +280,8 @@ function HistoryView({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <h3 className="px-1 font-semibold">Chat history</h3>
+      <p className="mb-3 px-1 text-xs text-muted">All chats about this analysis. Other analyses have their own.</p>
       {sessions.length > 6 && (
         <div className="mb-3 px-1">
           <label htmlFor="chat-history-filter" className="sr-only">
@@ -400,8 +400,11 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
   const titleOf = (id: TabId) => (isNew(id) ? "New chat" : (sessions?.find((s) => s.id === id)?.title ?? "Chat"));
 
   useEffect(() => {
+    // Follow the conversation; an empty chat stays at the top so its intro and suggestions are visible.
     // Block body on purpose: scrollIntoView returns a Promise in newer browsers, and an effect must not return one.
-    bottom.current?.scrollIntoView({ block: "end" });
+    if (turns.length > 0) {
+      bottom.current?.scrollIntoView({ block: "end" });
+    }
   }, [turns.length, pending, active]);
   useEffect(() => {
     const controllers = aborts.current;
@@ -487,15 +490,57 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
 
   return (
     <aside aria-label={`Assistant for ${appName}`} className="flex h-full flex-col bg-panel">
-      <header className="border-b border-line">
-        <div className="flex items-center gap-1 px-4 pt-3 pb-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <AppIcon src={run.app.icon_url} title={appName} size={32} />
-            <div className="min-w-0">
-              <h2 className="truncate font-semibold leading-tight">{appName}</h2>
-              <p className="truncate text-xs text-muted">{run.review_count} reviews</p>
-            </div>
-          </div>
+      {/* One row: open chats as tabs, then New chat, History and Close. */}
+      <header className="flex items-end gap-1 border-b border-line pt-2 pl-2">
+        <div role="tablist" aria-label="Open chats" onKeyDown={onTabKey} className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto [scrollbar-width:none]">
+          {tabs.open.map((id) => {
+            const selected = id === active && view === "chat";
+            return (
+              <div
+                key={id}
+                className={cx(
+                  "group relative flex max-w-[11rem] shrink-0 items-center rounded-t-md border-x border-t text-sm",
+                  selected ? "-mb-px border-line bg-panel" : "border-transparent text-muted hover:bg-soft hover:text-ink",
+                )}
+              >
+                <button
+                  ref={(el) => {
+                    if (el) tabRefs.current.set(id, el);
+                    else tabRefs.current.delete(id);
+                  }}
+                  role="tab"
+                  aria-selected={selected}
+                  tabIndex={id === active ? 0 : -1}
+                  onClick={() => {
+                    activate(id);
+                    setView("chat");
+                  }}
+                  title={titleOf(id)}
+                  className="flex min-w-0 items-center gap-1.5 py-2 pr-1 pl-3"
+                >
+                  {busy[id] && <Loader2 className="size-3 shrink-0 animate-spin" aria-label="Answering" />}
+                  <span className={cx("truncate", selected && "font-medium")}>{titleOf(id)}</span>
+                </button>
+                <button
+                  onClick={() => close(id)}
+                  aria-label={`Close tab “${titleOf(id)}”`}
+                  title="Close tab (the chat stays in history)"
+                  className={cx(
+                    "mr-1 grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-soft hover:text-ink",
+                    !selected && "opacity-0 group-hover:opacity-100 focus:opacity-100",
+                  )}
+                >
+                  <X className="size-3" aria-hidden />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mb-1 flex shrink-0 items-center gap-0.5 pr-2">
+          <button onClick={newChat} title="New chat" className="grid size-8 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink">
+            <SquarePen className="size-4" aria-hidden />
+            <span className="sr-only">New chat</span>
+          </button>
           <button
             onClick={() => setView((v) => (v === "history" ? "chat" : "history"))}
             aria-pressed={view === "history"}
@@ -508,67 +553,11 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
             <History className="size-4" aria-hidden />
             <span className="sr-only">Chat history</span>
           </button>
-          <button onClick={newChat} title="New chat" className="grid size-8 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink">
-            <SquarePen className="size-4" aria-hidden />
-            <span className="sr-only">New chat</span>
-          </button>
           <button onClick={onClose} title="Close assistant" className="grid size-8 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink">
             <X className="size-4" aria-hidden />
             <span className="sr-only">Close assistant</span>
           </button>
         </div>
-
-        {view === "chat" ? (
-          <div className="flex items-end gap-1 px-3">
-            <div role="tablist" aria-label="Open chats" onKeyDown={onTabKey} className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto [scrollbar-width:none]">
-              {tabs.open.map((id) => {
-                const selected = id === active;
-                return (
-                  <div
-                    key={id}
-                    className={cx(
-                      "group relative flex max-w-[11rem] shrink-0 items-center rounded-t-md border-x border-t text-sm",
-                      selected ? "-mb-px border-line bg-panel" : "border-transparent text-muted hover:bg-soft hover:text-ink",
-                    )}
-                  >
-                    <button
-                      ref={(el) => {
-                        if (el) tabRefs.current.set(id, el);
-                        else tabRefs.current.delete(id);
-                      }}
-                      role="tab"
-                      aria-selected={selected}
-                      tabIndex={selected ? 0 : -1}
-                      onClick={() => activate(id)}
-                      title={titleOf(id)}
-                      className="flex min-w-0 items-center gap-1.5 py-2 pr-1 pl-3"
-                    >
-                      {busy[id] && <Loader2 className="size-3 shrink-0 animate-spin" aria-label="Answering" />}
-                      <span className={cx("truncate", selected && "font-medium")}>{titleOf(id)}</span>
-                    </button>
-                    <button
-                      onClick={() => close(id)}
-                      aria-label={`Close tab “${titleOf(id)}”`}
-                      title="Close tab (the chat stays in history)"
-                      className={cx(
-                        "mr-1 grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-soft hover:text-ink",
-                        !selected && "opacity-0 group-hover:opacity-100 focus:opacity-100",
-                      )}
-                    >
-                      <X className="size-3" aria-hidden />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <button onClick={newChat} title="New chat" className="mb-1 grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink">
-              <Plus className="size-4" aria-hidden />
-              <span className="sr-only">New chat</span>
-            </button>
-          </div>
-        ) : (
-          <p className="px-4 pb-2 text-xs text-muted">All chats about this analysis. Other analyses have their own.</p>
-        )}
       </header>
 
       {view === "history" ? (
