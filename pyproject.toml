@@ -5,7 +5,7 @@ description = "Turn app store reviews into design and product insights."
 authors = [{ name = "Biswarup Mondal" }]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 # Offline unit tests only: no network access or API keys needed.
