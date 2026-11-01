@@ -14,6 +14,7 @@ from google_play_scraper import Sort
 from google_play_scraper import app as gp_app
 from google_play_scraper import reviews as gp_reviews
 from google_play_scraper import search as gp_search
+from google_play_scraper.constants.element import ElementSpec, ElementSpecs
 from google_play_scraper.exceptions import NotFoundError
 
 # google-play-scraper turns off TLS certificate verification for the whole process on import.
@@ -28,6 +29,20 @@ def _verified_https_context(*args, **kwargs) -> ssl.SSLContext:
 
 
 ssl._create_default_https_context = _verified_https_context
+
+# google-play-scraper 1.2.7 reads the top search result's app ID (the app the user most likely wants,
+# e.g. "com.duolingo" for "duolingo") from a position Google no longer fills. Read it from the
+# store link instead, keeping the old position as a fallback.
+_old_top_id = ElementSpecs.SearchResultOnTop["appId"]
+
+
+def _id_from_store_link(url):
+    return (parse_qs(urlparse(url).query).get("id") or [None])[0] if isinstance(url, str) else None
+
+
+ElementSpecs.SearchResultOnTop["appId"] = ElementSpec(
+    None, [2, 41, 0, 2], _id_from_store_link, fallback_value=_old_top_id
+)
 
 PAGE_SIZE = 200
 _PACKAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$")

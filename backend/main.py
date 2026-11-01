@@ -1,14 +1,19 @@
-"""FastAPI application. Run with: uvicorn backend.main:app --reload --port 8000"""
+"""FastAPI application. Run with: uvicorn backend.main:app --reload --port 8000
+
+If the frontend has been built (web/dist), it is served from the same address.
+"""
 
 from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from google_play_scraper.exceptions import ExtraHTTPError
 
 from .analytics.frame import FrameCache
@@ -37,8 +42,13 @@ def create_app(
     provider_factory = provider_factory or create_provider
     jobs = JobManager()
     ctx = AppContext(
-        settings=settings, db=db, store=store, provider_factory=provider_factory, jobs=jobs,
-        pipeline=AnalysisPipeline(db, store, provider_factory, settings), frames=FrameCache(),
+        settings=settings,
+        db=db,
+        store=store,
+        provider_factory=provider_factory,
+        jobs=jobs,
+        pipeline=AnalysisPipeline(db, store, provider_factory, settings),
+        frames=FrameCache(),
     )
 
     @asynccontextmanager
@@ -76,7 +86,24 @@ def create_app(
 
     for router in (providers.router, apps.router, runs.router, insights.router):
         app.include_router(router, prefix="/api")
+    if (settings.web_dist / "index.html").is_file():
+        _serve_frontend(app, settings.web_dist)
     return app
+
+
+def _serve_frontend(app: FastAPI, dist: Path) -> None:
+    """Serve the built single-page app; unknown paths fall back to index.html for client-side routing."""
+    root = dist.resolve()
+    app.mount("/assets", StaticFiles(directory=root / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def frontend(path: str) -> FileResponse:
+        if path.startswith("api/"):
+            raise HTTPException(404, "Not found")
+        candidate = (root / path).resolve()
+        if path and candidate.is_file() and root in candidate.parents:
+            return FileResponse(candidate)
+        return FileResponse(root / "index.html")
 
 
 load_dotenv()  # optional fallback API keys; keys pasted in the interface take precedence

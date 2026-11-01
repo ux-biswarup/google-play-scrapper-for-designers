@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_serializer, field_validator
 
@@ -100,7 +100,7 @@ class RunOut(BaseModel):
     def _utc(self, value: datetime | None) -> str | None:
         if value is None:
             return None
-        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+        return (value if value.tzinfo else value.replace(tzinfo=UTC)).isoformat()
 
 
 class MetricsQueryIn(BaseModel):

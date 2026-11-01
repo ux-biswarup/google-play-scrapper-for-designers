@@ -50,23 +50,27 @@ def spikes(
     series, found = [], []
     for bucket in full:
         count, base, std = int(counts[bucket]), float(baseline[bucket]), float(spread[bucket])
-        series.append({
-            "date": bucket.strftime("%Y-%m-%d"),
-            "one_star": count,
-            "total": int(totals[bucket]),
-            "baseline": round(base, 2),
-            "is_spike": bool(is_spike[bucket]),
-        })
-        if is_spike[bucket]:
-            in_bucket = ones[ones["bucket"] == bucket]
-            found.append({
+        series.append(
+            {
                 "date": bucket.strftime("%Y-%m-%d"),
                 "one_star": count,
+                "total": int(totals[bucket]),
                 "baseline": round(base, 2),
-                "score": round((count - base) / max(std, 1.0), 2),
-                "top_themes": [t for t, _ in _theme_counts(in_bucket).most_common(3)],
-                "versions": in_bucket["app_version"].value_counts().head(3).index.tolist(),
-            })
+                "is_spike": bool(is_spike[bucket]),
+            }
+        )
+        if is_spike[bucket]:
+            in_bucket = ones[ones["bucket"] == bucket]
+            found.append(
+                {
+                    "date": bucket.strftime("%Y-%m-%d"),
+                    "one_star": count,
+                    "baseline": round(base, 2),
+                    "score": round((count - base) / max(std, 1.0), 2),
+                    "top_themes": [t for t, _ in _theme_counts(in_bucket).most_common(3)],
+                    "versions": in_bucket["app_version"].value_counts().head(3).index.tolist(),
+                }
+            )
     return {"series": series, "spikes": found}
 
 
@@ -102,10 +106,16 @@ def compare(df: pd.DataFrame, mode: str, pivot: str) -> dict:
     for theme in set(b_counts) | set(a_counts):
         b_share = b_counts[theme] / len(before) if len(before) else 0.0
         a_share = a_counts[theme] / len(after) if len(after) else 0.0
-        shifts.append({
-            "theme": theme, "before_count": b_counts[theme], "after_count": a_counts[theme],
-            "before_share": round(b_share, 4), "after_share": round(a_share, 4), "delta": round(a_share - b_share, 4),
-        })
+        shifts.append(
+            {
+                "theme": theme,
+                "before_count": b_counts[theme],
+                "after_count": a_counts[theme],
+                "before_share": round(b_share, 4),
+                "after_share": round(a_share, 4),
+                "delta": round(a_share - b_share, 4),
+            }
+        )
     shifts.sort(key=lambda s: s["delta"], reverse=True)
 
     def delta(key: str):
@@ -139,10 +149,15 @@ def trending_themes(df: pd.DataFrame, window_days: int = 7, date_to: date | None
     for theme in set(now) | set(prev):
         current, previous = now[theme], prev[theme]
         change = ((current - previous) / previous) if previous else (1.0 if current else 0.0)
-        rows.append({
-            "theme": theme, "current": current, "previous": previous, "change": round(change, 4),
-            "direction": "up" if current > previous else "down" if current < previous else "flat",
-        })
+        rows.append(
+            {
+                "theme": theme,
+                "current": current,
+                "previous": previous,
+                "change": round(change, 4),
+                "direction": "up" if current > previous else "down" if current < previous else "flat",
+            }
+        )
     rows.sort(key=lambda r: (r["current"], r["change"]), reverse=True)
     return rows[:limit]
 
@@ -152,16 +167,27 @@ def versions(df: pd.DataFrame) -> list[dict]:
     if data.empty:
         return []
     g = data.groupby("app_version")
-    out = pd.DataFrame({
-        "review_count": g.size(),
-        "avg_rating": g["rating"].mean().round(3),
-        "negative_share": g["rating"].apply(lambda r: (r <= 2).mean()).round(4),
-        "first_seen": g["date"].min(),
-        "last_seen": g["date"].max(),
-    }).reset_index().sort_values("first_seen")
+    out = (
+        pd.DataFrame(
+            {
+                "review_count": g.size(),
+                "avg_rating": g["rating"].mean().round(3),
+                "negative_share": g["rating"].apply(lambda r: (r <= 2).mean()).round(4),
+                "first_seen": g["date"].min(),
+                "last_seen": g["date"].max(),
+            }
+        )
+        .reset_index()
+        .sort_values("first_seen")
+    )
     return [
-        {**row, "first_seen": row["first_seen"].strftime("%Y-%m-%d"), "last_seen": row["last_seen"].strftime("%Y-%m-%d"),
-         "review_count": int(row["review_count"]), "avg_rating": float(row["avg_rating"]),
-         "negative_share": float(row["negative_share"])}
+        {
+            **row,
+            "first_seen": row["first_seen"].strftime("%Y-%m-%d"),
+            "last_seen": row["last_seen"].strftime("%Y-%m-%d"),
+            "review_count": int(row["review_count"]),
+            "avg_rating": float(row["avg_rating"]),
+            "negative_share": float(row["negative_share"]),
+        }
         for row in out.to_dict(orient="records")
     ]

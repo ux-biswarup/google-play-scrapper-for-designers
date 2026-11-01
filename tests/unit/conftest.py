@@ -35,8 +35,18 @@ class FakeStore:
     def app_details(self, store_id: str, *, lang: str, country: str) -> AppDetails:
         if store_id == "com.missing.app":
             raise AppNotFound("No Play Store app found")
-        return AppDetails(store_id, "Example App", "Example Inc", "https://img/icon.png", "Tools", 4.1,
-                          12345, "1,000+", "3.0", f"https://play.google.com/store/apps/details?id={store_id}")
+        return AppDetails(
+            store_id,
+            "Example App",
+            "Example Inc",
+            "https://img/icon.png",
+            "Tools",
+            4.1,
+            12345,
+            "1,000+",
+            "3.0",
+            f"https://play.google.com/store/apps/details?id={store_id}",
+        )
 
     def search(self, query: str, *, lang: str, country: str, limit: int = 10) -> list[AppSearchHit]:
         return [AppSearchHit("com.example.app", "Example App", "Example Inc", None, 4.1)]
@@ -46,11 +56,17 @@ class FakeStore:
         reviews = []
         for i in range(count * 2):
             rating, text = TEMPLATES[i % len(TEMPLATES)]
-            reviews.append(StoreReview(
-                review_id=f"r{i}", rating=rating, content=text,
-                reviewed_at=start + timedelta(hours=i * 24 * self.days / (count * 2)),
-                app_version="2.0" if i >= count * 3 // 2 else "1.0", thumbs_up=i % 7, reply_content=None,
-            ))
+            reviews.append(
+                StoreReview(
+                    review_id=f"r{i}",
+                    rating=rating,
+                    content=text,
+                    reviewed_at=start + timedelta(hours=i * 24 * self.days / (count * 2)),
+                    app_version="2.0" if i >= count * 3 // 2 else "1.0",
+                    thumbs_up=i % 7,
+                    reply_content=None,
+                )
+            )
         if ratings:
             reviews = [r for r in reviews if r.rating in ratings]
         reviews = sorted(reviews, key=lambda r: r.reviewed_at, reverse=True)[:count]
@@ -62,16 +78,35 @@ class FakeStore:
 def _fake_tag(text: str) -> dict:
     lowered = text.lower()
     if "login" in lowered:
-        return {"category": "Bug ", "themes": ["Login fails"], "journey_stage": "account_login", "emotion": "frustration"}
+        return {
+            "category": "Bug ",
+            "themes": ["Login fails"],
+            "journey_stage": "account_login",
+            "emotion": "frustration",
+        }
     if "log in" in lowered:
         return {"category": "bug", "themes": ["cannot log in"], "journey_stage": "account_login", "emotion": "anger"}
     if "crash" in lowered:
-        return {"category": "bug", "themes": ["app crashes"], "journey_stage": "core_experience", "emotion": "frustration"}
+        return {
+            "category": "bug",
+            "themes": ["app crashes"],
+            "journey_stage": "core_experience",
+            "emotion": "frustration",
+        }
     if "love" in lowered:
-        return {"category": "praise", "themes": ["beautiful design"], "journey_stage": "core_experience", "emotion": "delight"}
+        return {
+            "category": "praise",
+            "themes": ["beautiful design"],
+            "journey_stage": "core_experience",
+            "emotion": "delight",
+        }
     if "dark mode" in lowered:
-        return {"category": "feature_request", "themes": ["dark mode request"], "journey_stage": "settings_privacy",
-                "emotion": "satisfaction"}
+        return {
+            "category": "feature_request",
+            "themes": ["dark mode request"],
+            "journey_stage": "settings_privacy",
+            "emotion": "satisfaction",
+        }
     return {"category": "made-up", "themes": [], "journey_stage": "nowhere", "emotion": "meh"}
 
 
@@ -133,7 +168,8 @@ def client(llm_calls, provider_failure):
 
     app = create_app(
         Settings(database_url="sqlite://", batch_size=10, llm_concurrency=3),
-        store=FakeStore(), provider_factory=factory,
+        store=FakeStore(),
+        provider_factory=factory,
     )
     with TestClient(app) as test_client:
         yield test_client

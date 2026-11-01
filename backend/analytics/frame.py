@@ -12,8 +12,19 @@ from ..db import Database
 from ..models import Insight, Review, Run, RunReview
 
 COLUMNS = [
-    "review_id", "date", "rating", "sentiment", "content", "app_version", "thumbs_up", "reply",
-    "category", "themes", "journey_stage", "emotion", "tagged",
+    "review_id",
+    "date",
+    "rating",
+    "sentiment",
+    "content",
+    "app_version",
+    "thumbs_up",
+    "reply",
+    "category",
+    "themes",
+    "journey_stage",
+    "emotion",
+    "tagged",
 ]
 
 
@@ -60,9 +71,18 @@ def load_run_frame(db: Database, run_id: str, cache: FrameCache | None = None) -
         theme_map: dict[str, str] = run.theme_map or {}
         rows = s.execute(
             select(
-                Review.store_review_id, Review.reviewed_at, Review.rating, Review.content, Review.app_version,
-                Review.thumbs_up, Review.reply_content, Insight.id.label("insight_id"), Insight.category,
-                Insight.themes, Insight.journey_stage, Insight.emotion,
+                Review.store_review_id,
+                Review.reviewed_at,
+                Review.rating,
+                Review.content,
+                Review.app_version,
+                Review.thumbs_up,
+                Review.reply_content,
+                Insight.id.label("insight_id"),
+                Insight.category,
+                Insight.themes,
+                Insight.journey_stage,
+                Insight.emotion,
             )
             .join(RunReview, RunReview.review_id == Review.id)
             .outerjoin(Insight, and_(Insight.review_id == Review.id, Insight.model_key == run.model_key))
@@ -76,21 +96,23 @@ def load_run_frame(db: Database, run_id: str, cache: FrameCache | None = None) -
             canonical = theme_map.get(label, label)
             if canonical and canonical not in themes:  # "" = discarded as too vague
                 themes.append(canonical)
-        records.append({
-            "review_id": r.store_review_id,
-            "date": r.reviewed_at,
-            "rating": int(r.rating),
-            "sentiment": sentiment_from_rating(int(r.rating)),
-            "content": r.content or "",
-            "app_version": r.app_version or "unknown",
-            "thumbs_up": int(r.thumbs_up or 0),
-            "reply": r.reply_content,
-            "category": r.category,
-            "themes": themes,
-            "journey_stage": r.journey_stage,
-            "emotion": r.emotion,
-            "tagged": r.insight_id is not None,
-        })
+        records.append(
+            {
+                "review_id": r.store_review_id,
+                "date": r.reviewed_at,
+                "rating": int(r.rating),
+                "sentiment": sentiment_from_rating(int(r.rating)),
+                "content": r.content or "",
+                "app_version": r.app_version or "unknown",
+                "thumbs_up": int(r.thumbs_up or 0),
+                "reply": r.reply_content,
+                "category": r.category,
+                "themes": themes,
+                "journey_stage": r.journey_stage,
+                "emotion": r.emotion,
+                "tagged": r.insight_id is not None,
+            }
+        )
     df = pd.DataFrame.from_records(records, columns=COLUMNS)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     if cache:

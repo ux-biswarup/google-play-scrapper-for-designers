@@ -120,24 +120,26 @@ def problem_board(df: pd.DataFrame, limit: int = 20, quotes: int = 3) -> dict:
         recent = int((g["date"] >= midpoint).sum()) if midpoint is not None else 0
         prior = int((g["date"] < midpoint).sum()) if midpoint is not None else 0
         momentum, growth, trend = _momentum(recent, recent_total, prior, prior_total)
-        items.append({
-            "theme": theme,
-            "mentions": mentions,
-            "reach": round(reach, 4),
-            "avg_rating": round(float(g["rating"].mean()), 3),
-            "negative_share": round(negativity, 4),
-            "positive_share": round(positivity, 4),
-            "trend": trend,
-            "growth": growth,
-            "impact": round(100 * reach * negativity * momentum, 2),
-            "categories": _top(g["category"]),
-            "journey_stages": _top(g["journey_stage"]),
-            "emotions": _top(g["emotion"]),
-            "versions": _top(g["app_version"]),
-            "first_seen": _iso(g["date"].min()),
-            "last_seen": _iso(g["date"].max()),
-            "_group": g,
-        })
+        items.append(
+            {
+                "theme": theme,
+                "mentions": mentions,
+                "reach": round(reach, 4),
+                "avg_rating": round(float(g["rating"].mean()), 3),
+                "negative_share": round(negativity, 4),
+                "positive_share": round(positivity, 4),
+                "trend": trend,
+                "growth": growth,
+                "impact": round(100 * reach * negativity * momentum, 2),
+                "categories": _top(g["category"]),
+                "journey_stages": _top(g["journey_stage"]),
+                "emotions": _top(g["emotion"]),
+                "versions": _top(g["app_version"]),
+                "first_seen": _iso(g["date"].min()),
+                "last_seen": _iso(g["date"].max()),
+                "_group": g,
+            }
+        )
 
     problems = sorted((i for i in items if i["negative_share"] >= 0.4), key=lambda i: i["impact"], reverse=True)
     strengths = sorted(

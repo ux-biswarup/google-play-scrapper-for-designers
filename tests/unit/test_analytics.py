@@ -14,10 +14,19 @@ from backend.analytics.metrics import MetricsQuery, auto_grain, run_query
 
 def _row(i: int, day: int, rating: int, themes: list[str], version: str = "1.0", hour: int = 12) -> dict:
     return {
-        "review_id": f"r{i}", "date": pd.Timestamp(2026, 3, day, hour), "rating": rating,
-        "sentiment": sentiment_from_rating(rating), "content": f"review number {i} with enough text",
-        "app_version": version, "thumbs_up": i, "reply": None, "category": "bug" if rating <= 2 else "praise",
-        "themes": themes, "journey_stage": "core_experience", "emotion": "neutral", "tagged": True,
+        "review_id": f"r{i}",
+        "date": pd.Timestamp(2026, 3, day, hour),
+        "rating": rating,
+        "sentiment": sentiment_from_rating(rating),
+        "content": f"review number {i} with enough text",
+        "app_version": version,
+        "thumbs_up": i,
+        "reply": None,
+        "category": "bug" if rating <= 2 else "praise",
+        "themes": themes,
+        "journey_stage": "core_experience",
+        "emotion": "neutral",
+        "tagged": True,
     }
 
 
@@ -46,7 +55,9 @@ def test_metrics_by_theme_and_filters(df):
 
 def test_date_to_includes_the_whole_last_day(df):
     # Regression: the old version cut the end date at midnight and dropped that day's reviews.
-    rows = run_query(df, MetricsQuery(measures=["review_count"], date_from=date(2026, 3, 11), date_to=date(2026, 3, 11)))
+    rows = run_query(
+        df, MetricsQuery(measures=["review_count"], date_from=date(2026, 3, 11), date_to=date(2026, 3, 11))
+    )
     assert rows == [{"review_count": 6}]
 
 

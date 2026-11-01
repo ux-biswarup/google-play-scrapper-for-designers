@@ -1,0 +1,180 @@
+name: CI
+
+# Each job checks one part of the app, so a red X shows where something broke:
+#   Backend lint      -> Python style and likely bugs (annotated on the exact line)
+#   Backend tests     -> 40+ offline tests on every supported Python version
+#   Frontend          -> TypeScript type check and production build
+#   Smoke test        -> starts the real server and calls its endpoints
+#   Summary           -> one table with the result of every job
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install ruff
+      - name: Lint (ruff)
+        run: ruff check --output-format=github backend tests
+      - name: Formatting (ruff format)
+        run: ruff format --check backend tests
+
+  test:
+    name: Backend tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+      - name: Run tests
+        run: pytest -ra -o junit_family=xunit1 --junitxml=test-results.xml
+      - name: Summarize results
+        if: always()
+        run: python .github/scripts/test_summary.py test-results.xml "Python ${{ matrix.python }}"
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-python-${{ matrix.python }}
+          path: test-results.xml
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend (type check and build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Build
+        run: npx vite build
+      - name: Report bundle size
+        run: |
+          {
+            echo "### Frontend build"
+            echo ""
+            echo "| File | Size |"
+            echo "| --- | --- |"
+            for f in dist/assets/*.js dist/assets/*.css; do
+              echo "| $(basename "$f") | $(du -h "$f" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 3
+
+  smoke:
+    name: Smoke test (server starts and responds)
+    needs: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: web/dist
+      - name: Start server
+        env:
+          APP_DATA_DIR: ${{ runner.temp }}/data
+        run: |
+          uvicorn backend.main:app --port 8000 > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/api/health && exit 0
+            sleep 1
+          done
+          echo "::error title=Server did not start::See the server log below"
+          cat server.log
+          exit 1
+      - name: Call endpoints
+        run: |
+          set -e
+          check() {
+            code=$(curl -s -o /tmp/body -w "%{http_code}" "$@")
+            echo "$code $*"
+            if [ "$code" -ge 400 ]; then
+              echo "::error title=Endpoint failed::$* returned $code: $(head -c 300 /tmp/body)"
+              exit 1
+            fi
+          }
+          check http://127.0.0.1:8000/api/health
+          check http://127.0.0.1:8000/api/providers
+          check http://127.0.0.1:8000/api/metrics/catalog
+          check http://127.0.0.1:8000/api/runs
+          check -X POST -H "Content-Type: application/json" -d '{"count": 300}' http://127.0.0.1:8000/api/runs/estimate
+          check http://127.0.0.1:8000/
+          check http://127.0.0.1:8000/runs/some-id
+          grep -q '<div id="root">' /tmp/body || { echo "::error title=Frontend not served::index.html missing"; exit 1; }
+      - name: Server log
+        if: always()
+        run: cat server.log || true
+
+  summary:
+    name: Summary
+    if: always()
+    needs: [lint, test, frontend, smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write summary
+        env:
+          LINT: ${{ needs.lint.result }}
+          TEST: ${{ needs.test.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          SMOKE: ${{ needs.smoke.result }}
+        run: |
+          icon() { case "$1" in success) echo "✅ passed";; failure) echo "❌ failed";; cancelled) echo "⏹ cancelled";; *) echo "⏭ $1";; esac; }
+          {
+            echo "## CI results"
+            echo ""
+            echo "| Check | Result | What it means if it failed |"
+            echo "| --- | --- | --- |"
+            echo "| Backend lint | $(icon "$LINT") | Style or likely-bug issue in Python; see annotations on the run |"
+            echo "| Backend tests | $(icon "$TEST") | A behaviour broke; each Python version lists the failing tests |"
+            echo "| Frontend | $(icon "$FRONTEND") | TypeScript error or the web app doesn't build |"
+            echo "| Smoke test | $(icon "$SMOKE") | The server doesn't start or an endpoint errors; see its server log |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for r in "$LINT" "$TEST" "$FRONTEND" "$SMOKE"; do
+            [ "$r" = "success" ] || exit 1
+          done

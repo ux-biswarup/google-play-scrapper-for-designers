@@ -11,3 +11,12 @@ requires-python = ">=3.11"
 # Offline unit tests only: no network access or API keys needed.
 testpaths = ["tests/unit"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP"]
+# B008: FastAPI declares dependencies as Depends()/Query() defaults by design.
+ignore = ["B008"]

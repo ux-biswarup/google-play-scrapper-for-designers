@@ -89,44 +89,75 @@ class AnalysisPipeline:
         try:
             run = self._get_run(run_id)
             store_id, country, lang = run.app.store_id, run.country or "us", run.lang or "en"
-            self._update(run_id, status=RunStatus.RUNNING, started_at=utcnow(), stage="fetching_app",
-                         message="Looking up the app…")
+            self._update(
+                run_id,
+                status=RunStatus.RUNNING,
+                started_at=utcnow(),
+                stage="fetching_app",
+                message="Looking up the app…",
+            )
             details = await asyncio.to_thread(self.store.app_details, store_id, lang=lang, country=country)
             self._save_app(run.app_id, details)
             self._check(cancel)
 
-            self._update(run_id, stage="fetching_reviews", progress_done=0, progress_total=run.requested_count,
-                         message="Downloading reviews from Google Play…")
+            self._update(
+                run_id,
+                stage="fetching_reviews",
+                progress_done=0,
+                progress_total=run.requested_count,
+                message="Downloading reviews from Google Play…",
+            )
 
             def on_fetch(done: int, total: int) -> None:
                 self._update(run_id, progress_done=done, progress_total=total)
 
             reviews = await asyncio.to_thread(
-                self.store.fetch_reviews, store_id, lang=lang, country=country,
-                count=run.requested_count, ratings=run.ratings, on_progress=on_fetch,
+                self.store.fetch_reviews,
+                store_id,
+                lang=lang,
+                country=country,
+                count=run.requested_count,
+                ratings=run.ratings,
+                on_progress=on_fetch,
             )
             if not reviews:
-                raise PipelineError("No reviews found for this app with these settings. Try another country or language.")
+                raise PipelineError(
+                    "No reviews found for this app with these settings. Try another country or language."
+                )
             review_ids = self._save_reviews(run, reviews)
             self._check(cancel)
 
             todo = self._untagged(review_ids, llm.model_key)
             reused = len(review_ids) - len(todo)
             note = f" ({reused} already analyzed with this model)" if reused else ""
-            self._update(run_id, stage="analyzing", review_count=len(review_ids), progress_done=reused,
-                         progress_total=len(review_ids), message=f"Analyzing {len(todo)} reviews with AI{note}…")
+            self._update(
+                run_id,
+                stage="analyzing",
+                review_count=len(review_ids),
+                progress_done=reused,
+                progress_total=len(review_ids),
+                message=f"Analyzing {len(todo)} reviews with AI{note}…",
+            )
 
             provider = self.provider_factory(llm)
 
             async def on_batch(results: dict[int, TagResult], done: int, _total: int, usage: Usage) -> None:
                 self._save_insights(results, llm.model_key)
-                self._update(run_id, progress_done=reused + done,
-                             input_tokens=usage.input_tokens, output_tokens=usage.output_tokens)
+                self._update(
+                    run_id,
+                    progress_done=reused + done,
+                    input_tokens=usage.input_tokens,
+                    output_tokens=usage.output_tokens,
+                )
 
             outcome = await tag_reviews(
-                provider, todo,
-                batch_size=self.settings.batch_size, concurrency=self.settings.llm_concurrency,
-                output_language=run.output_language, on_batch_done=on_batch, cancel=cancel,
+                provider,
+                todo,
+                batch_size=self.settings.batch_size,
+                concurrency=self.settings.llm_concurrency,
+                output_language=run.output_language,
+                on_batch_done=on_batch,
+                cancel=cancel,
                 app_context=" ".join(filter(None, [details.title, f"({details.genre})" if details.genre else ""])),
             )
             self._check(cancel)
@@ -147,10 +178,16 @@ class AnalysisPipeline:
             if warning:
                 notes.append(warning)
             self._update(
-                run_id, status=RunStatus.COMPLETED, stage="done", theme_map=theme_map,
-                tagged_count=len(review_ids) - outcome.failed, failed_count=outcome.failed,
-                input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
-                progress_done=len(review_ids), finished_at=utcnow(),
+                run_id,
+                status=RunStatus.COMPLETED,
+                stage="done",
+                theme_map=theme_map,
+                tagged_count=len(review_ids) - outcome.failed,
+                failed_count=outcome.failed,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+                progress_done=len(review_ids),
+                finished_at=utcnow(),
                 message="Analysis complete" + (f" ({'; '.join(notes)})" if notes else ""),
             )
         except (_Cancelled, asyncio.CancelledError) as exc:
@@ -196,9 +233,18 @@ class AnalysisPipeline:
     def _save_app(self, app_id: int, d: AppDetails) -> None:
         with self.db.session() as s:
             s.execute(
-                update(App).where(App.id == app_id).values(
-                    title=d.title, developer=d.developer, icon_url=d.icon_url, genre=d.genre, score=d.score,
-                    ratings_count=d.ratings_count, installs=d.installs, version=d.version, store_url=d.store_url,
+                update(App)
+                .where(App.id == app_id)
+                .values(
+                    title=d.title,
+                    developer=d.developer,
+                    icon_url=d.icon_url,
+                    genre=d.genre,
+                    score=d.score,
+                    ratings_count=d.ratings_count,
+                    installs=d.installs,
+                    version=d.version,
+                    store_url=d.store_url,
                     updated_at=utcnow(),
                 )
             )
@@ -233,7 +279,9 @@ class AnalysisPipeline:
     def _untagged(self, review_ids: list[int], model_key: str) -> list[ReviewInput]:
         with self.db.session() as s:
             done = set(
-                s.scalars(select(Insight.review_id).where(Insight.model_key == model_key, Insight.review_id.in_(review_ids)))
+                s.scalars(
+                    select(Insight.review_id).where(Insight.model_key == model_key, Insight.review_id.in_(review_ids))
+                )
             )
             rows = s.execute(select(Review.id, Review.rating, Review.content).where(Review.id.in_(review_ids))).all()
         return [ReviewInput(r.id, r.rating, r.content or "") for r in rows if r.id not in done]
@@ -243,11 +291,21 @@ class AnalysisPipeline:
             return
         with self.db.session() as s:
             have = set(
-                s.scalars(select(Insight.review_id).where(Insight.model_key == model_key, Insight.review_id.in_(list(results))))
+                s.scalars(
+                    select(Insight.review_id).where(
+                        Insight.model_key == model_key, Insight.review_id.in_(list(results))
+                    )
+                )
             )
             s.add_all(
-                Insight(review_id=rid, model_key=model_key, category=t.category, themes=t.themes,
-                        journey_stage=t.journey_stage, emotion=t.emotion)
+                Insight(
+                    review_id=rid,
+                    model_key=model_key,
+                    category=t.category,
+                    themes=t.themes,
+                    journey_stage=t.journey_stage,
+                    emotion=t.emotion,
+                )
                 for rid, t in results.items()
                 if rid not in have
             )

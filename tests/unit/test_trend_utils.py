@@ -9,29 +9,33 @@ def _make_df() -> pd.DataFrame:
     rows = []
     # 10 quiet days with one 1-star review each, then a spike day with eight.
     for day in range(1, 11):
-        rows.append({
-            "review_id": f"q{day}",
-            "date": f"2026-01-{day:02d}T10:00:00",
-            "rating": 1 if day % 2 else 5,
-            "content": "works fine",
-            "sentiment": "negative" if day % 2 else "positive",
-            "app_version": "1.0",
-            "topics": ["performance"],
-            "issues": [],
-            "praises": [],
-        })
+        rows.append(
+            {
+                "review_id": f"q{day}",
+                "date": f"2026-01-{day:02d}T10:00:00",
+                "rating": 1 if day % 2 else 5,
+                "content": "works fine",
+                "sentiment": "negative" if day % 2 else "positive",
+                "app_version": "1.0",
+                "topics": ["performance"],
+                "issues": [],
+                "praises": [],
+            }
+        )
     for i in range(8):
-        rows.append({
-            "review_id": f"s{i}",
-            "date": "2026-01-12T15:00:00",
-            "rating": 1,
-            "content": "login crash after update",
-            "sentiment": "negative",
-            "app_version": "2.0",
-            "topics": ["login"],
-            "issues": ["login crash"],
-            "praises": [],
-        })
+        rows.append(
+            {
+                "review_id": f"s{i}",
+                "date": "2026-01-12T15:00:00",
+                "rating": 1,
+                "content": "login crash after update",
+                "sentiment": "negative",
+                "app_version": "2.0",
+                "topics": ["login"],
+                "issues": ["login crash"],
+                "praises": [],
+            }
+        )
     df = pd.DataFrame(rows)
     df["date"] = pd.to_datetime(df["date"])
     return df

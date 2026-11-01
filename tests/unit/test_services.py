@@ -8,6 +8,7 @@ import ssl
 from datetime import datetime
 
 import pytest
+from conftest import FakeProvider
 from sqlalchemy import select
 
 from backend.db import Database
@@ -19,7 +20,6 @@ from backend.services.legacy_import import import_legacy_reports
 from backend.services.play_store import PlayStoreClient, parse_store_id
 from backend.services.tagging import ReviewInput, tag_reviews
 from backend.services.themes import build_theme_map
-from conftest import FakeProvider
 
 # ---- providers ------------------------------------------------------------
 
@@ -27,7 +27,7 @@ from conftest import FakeProvider
 def test_extract_json_object_variants():
     assert extract_json_object('{"a": 1}') == {"a": 1}
     assert extract_json_object('Sure!\n```json\n{"a": [1, 2]}\n```') == {"a": [1, 2]}
-    assert extract_json_object("prefix {\"a\": {\"b\": 2}} suffix") == {"a": {"b": 2}}
+    assert extract_json_object('prefix {"a": {"b": 2}} suffix') == {"a": {"b": 2}}
     assert extract_json_object("no json here") is None
     assert extract_json_object("[1, 2]") is None
 
@@ -75,6 +75,14 @@ def test_parse_store_id():
             parse_store_id(bad)
 
 
+def test_top_search_result_id_comes_from_store_link():
+    from google_play_scraper.constants.element import ElementSpecs
+
+    top = [None, None, [None] * 42]
+    top[2][41] = [[None, None, "https://play.google.com/store/apps/details?id=com.duolingo"]]
+    assert ElementSpecs.SearchResultOnTop["appId"].extract_content(top) == "com.duolingo"
+
+
 def test_tls_verification_restored():
     context = ssl._create_default_https_context()
     assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
@@ -85,10 +93,20 @@ def test_fetch_reviews_merges_rating_filters(monkeypatch):
         token = None
 
     pages = {
-        1: [{"reviewId": "a", "score": 1, "content": "bad", "at": datetime(2026, 1, 3)},
-            {"reviewId": "b", "score": 1, "content": "worse", "at": datetime(2026, 1, 1)}],
-        2: [{"reviewId": "c", "score": 2, "content": "meh", "at": datetime(2026, 1, 2),
-             "reviewCreatedVersion": ["weird"], "thumbsUpCount": 4}],
+        1: [
+            {"reviewId": "a", "score": 1, "content": "bad", "at": datetime(2026, 1, 3)},
+            {"reviewId": "b", "score": 1, "content": "worse", "at": datetime(2026, 1, 1)},
+        ],
+        2: [
+            {
+                "reviewId": "c",
+                "score": 2,
+                "content": "meh",
+                "at": datetime(2026, 1, 2),
+                "reviewCreatedVersion": ["weird"],
+                "thumbsUpCount": 4,
+            }
+        ],
     }
 
     def fake_reviews(app_id, *, filter_score_with, count, **_kwargs):
@@ -115,10 +133,15 @@ def test_tag_reviews_coerces_and_batches():
     calls: dict = {}
     reviews = _inputs("login fails", "the app crashes", "", "random words")
     progress = []
-    outcome = asyncio.run(tag_reviews(
-        FakeProvider(calls), reviews, batch_size=2, concurrency=2,
-        on_batch_done=lambda res, done, total, usage: progress.append((done, total)),
-    ))
+    outcome = asyncio.run(
+        tag_reviews(
+            FakeProvider(calls),
+            reviews,
+            batch_size=2,
+            concurrency=2,
+            on_batch_done=lambda res, done, total, usage: progress.append((done, total)),
+        )
+    )
     assert calls["tag"] == 2  # empty review is never sent to the model
     assert outcome.failed == 0 and len(outcome.results) == 4
     assert outcome.results[100].category == "bug" and outcome.results[100].themes == ["login fails"]
@@ -167,12 +190,28 @@ def test_build_theme_map_groups_and_falls_back():
 def test_legacy_import_is_idempotent(tmp_path):
     reports = tmp_path / "reports"
     reports.mkdir()
-    (reports / "com.old.app_reviews.json").write_text(json.dumps([
-        {"review_id": "x1", "date": "2026-02-01T10:00:00", "rating": 1, "content": "Crashes",
-         "app_version": "1.2", "topics": ["App Crashes", "error", "app crashes"]},
-        {"review_id": "x2", "date": "2026-02-02T10:00:00", "rating": 5, "content": "Nice", "app_version": "unknown",
-         "topics": []},
-    ]))
+    (reports / "com.old.app_reviews.json").write_text(
+        json.dumps(
+            [
+                {
+                    "review_id": "x1",
+                    "date": "2026-02-01T10:00:00",
+                    "rating": 1,
+                    "content": "Crashes",
+                    "app_version": "1.2",
+                    "topics": ["App Crashes", "error", "app crashes"],
+                },
+                {
+                    "review_id": "x2",
+                    "date": "2026-02-02T10:00:00",
+                    "rating": 5,
+                    "content": "Nice",
+                    "app_version": "unknown",
+                    "topics": [],
+                },
+            ]
+        )
+    )
     (reports / "com.old.app_report.json").write_text(json.dumps({"app_info": {"title": "Old App", "score": 3.9}}))
     db = Database("sqlite://")
     db.init()
@@ -190,7 +229,10 @@ def test_provider_message_extracts_reason():
     from backend.providers.base import provider_message
 
     class FakeAPIError(Exception):
-        body = {"type": "error", "error": {"type": "invalid_request_error", "message": "Your credit balance is too low"}}
+        body = {
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": "Your credit balance is too low"},
+        }
 
     assert provider_message(FakeAPIError("Error code: 400 - {...}")) == "Your credit balance is too low"
     assert provider_message(ValueError("plain   message")) == "plain message"

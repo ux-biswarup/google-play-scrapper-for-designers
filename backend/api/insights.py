@@ -33,8 +33,13 @@ def _filters(
     app_version: list[str] | None = Query(None),
 ) -> dict[str, list]:
     values = {
-        "rating": rating, "sentiment": sentiment, "category": category, "theme": theme,
-        "journey_stage": journey_stage, "emotion": emotion, "app_version": app_version,
+        "rating": rating,
+        "sentiment": sentiment,
+        "category": category,
+        "theme": theme,
+        "journey_stage": journey_stage,
+        "emotion": emotion,
+        "app_version": app_version,
     }
     return {k: v for k, v in values.items() if v}
 
@@ -55,14 +60,18 @@ def overview(run_id: str, ctx: AppContext = Depends(get_ctx)) -> dict:
     df = _frame(ctx, run_id)
     with ctx.db.session() as s:
         run = s.get(Run, run_id)
-        meta = {"run": RunOut.model_validate(run).model_dump(mode="json"),
-                "app": AppOut.model_validate(run.app).model_dump()}
+        meta = {
+            "run": RunOut.model_validate(run).model_dump(mode="json"),
+            "app": AppOut.model_validate(run.app).model_dump(),
+        }
     return meta | insights.overview(df)
 
 
 @router.get("/runs/{run_id}/themes")
 def themes(
-    run_id: str, limit: int = Query(20, ge=1, le=100), quotes: int = Query(3, ge=0, le=10),
+    run_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    quotes: int = Query(3, ge=0, le=10),
     ctx: AppContext = Depends(get_ctx),
 ) -> dict:
     return insights.problem_board(_frame(ctx, run_id), limit=limit, quotes=quotes)
@@ -78,10 +87,16 @@ def run_trends(
     ctx: AppContext = Depends(get_ctx),
 ) -> dict:
     df = _frame(ctx, run_id)
-    series = run_query(df, MetricsQuery(
-        measures=["review_count", "avg_rating", "negative_share", "neutral_share", "positive_share"],
-        dimensions=["date"], time_grain=grain, date_from=date_from, date_to=date_to,
-    ))
+    series = run_query(
+        df,
+        MetricsQuery(
+            measures=["review_count", "avg_rating", "negative_share", "neutral_share", "positive_share"],
+            dimensions=["date"],
+            time_grain=grain,
+            date_from=date_from,
+            date_to=date_to,
+        ),
+    )
     return {
         "grain": grain,
         "series": series,
@@ -92,7 +107,9 @@ def run_trends(
 
 
 @router.get("/runs/{run_id}/compare")
-def compare(run_id: str, mode: str = "version", pivot: str = Query(min_length=1), ctx: AppContext = Depends(get_ctx)) -> dict:
+def compare(
+    run_id: str, mode: str = "version", pivot: str = Query(min_length=1), ctx: AppContext = Depends(get_ctx)
+) -> dict:
     return trends.compare(_frame(ctx, run_id), mode, pivot)
 
 
@@ -109,8 +126,14 @@ def reviews(
     ctx: AppContext = Depends(get_ctx),
 ) -> dict:
     return insights.list_reviews(
-        _frame(ctx, run_id), filters=filters, date_from=date_from, date_to=date_to,
-        query=q, sort=sort, page=page, page_size=page_size,
+        _frame(ctx, run_id),
+        filters=filters,
+        date_from=date_from,
+        date_to=date_to,
+        query=q,
+        sort=sort,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -122,5 +145,6 @@ def chart_image(run_id: str, chart: str, fmt: str, ctx: AppContext = Depends(get
         title = app.title or app.store_id
     image = charts.render(chart, df, title, fmt)
     filename = re.sub(r"[^A-Za-z0-9._-]+", "-", f"{app.store_id}-{chart}.{fmt}")
-    return Response(image, media_type=charts.FORMATS[fmt],
-                    headers={"Content-Disposition": f'inline; filename="{filename}"'})
+    return Response(
+        image, media_type=charts.FORMATS[fmt], headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )

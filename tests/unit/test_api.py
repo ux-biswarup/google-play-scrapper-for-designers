@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from conftest import RUN_BODY, wait_for_run
 from sqlalchemy import text
 
 from backend.providers import LLMError
-from conftest import RUN_BODY, wait_for_run
 
 
 def _start(client, **overrides) -> str:
@@ -27,7 +27,13 @@ def test_full_analysis_run(client, llm_calls):
     categories = {c["category"]: c["review_count"] for c in overview["category_distribution"]}
     assert categories["bug"] == 30  # "Bug " from the model was normalised
     assert {e["emotion"] for e in overview["emotion_distribution"]} <= {
-        "frustration", "anger", "confusion", "disappointment", "neutral", "satisfaction", "delight"
+        "frustration",
+        "anger",
+        "confusion",
+        "disappointment",
+        "neutral",
+        "satisfaction",
+        "delight",
     }
 
     board = client.get(f"/api/runs/{run['id']}/themes").json()
@@ -48,9 +54,14 @@ def test_insight_endpoints(client):
     search = client.get(f"/api/runs/{run_id}/reviews", params={"q": "DARK MODE", "rating": [4]}).json()
     assert search["total"] == 10
 
-    metrics = client.post(f"/api/runs/{run_id}/metrics", json={
-        "measures": ["review_count", "avg_rating"], "dimensions": ["category"], "order_by": "review_count",
-    }).json()["rows"]
+    metrics = client.post(
+        f"/api/runs/{run_id}/metrics",
+        json={
+            "measures": ["review_count", "avg_rating"],
+            "dimensions": ["category"],
+            "order_by": "review_count",
+        },
+    ).json()["rows"]
     assert metrics[0] == {"category": "bug", "review_count": 30, "avg_rating": 1.3333}
     bad = client.post(f"/api/runs/{run_id}/metrics", json={"measures": ["profit"]})
     assert bad.status_code == 400 and "Unknown measures" in bad.json()["detail"]
@@ -139,3 +150,21 @@ def test_estimate_and_app_search(client):
     assert estimate["ai_requests"] == 51 and estimate["seconds"] > 0
     assert client.get("/api/apps/search", params={"q": "example"}).json()[0]["store_id"] == "com.example.app"
     assert client.get("/api/apps/lookup", params={"id": "com.example.app"}).json()["title"] == "Example App"
+
+
+def test_serves_built_frontend(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from backend.config import Settings
+    from backend.main import create_app
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<div id=root></div>")
+    (tmp_path / "assets" / "app.js").write_text("console.log(1)")
+    (tmp_path.parent / "secret.txt").write_text("nope")
+    with TestClient(create_app(Settings(database_url="sqlite://", web_dist=tmp_path))) as client:
+        assert client.get("/runs/abc").text == "<div id=root></div>"  # client-side route
+        assert client.get("/assets/app.js").text == "console.log(1)"
+        assert "nope" not in client.get("/../secret.txt").text
+        assert client.get("/api/does-not-exist").status_code == 404
+        assert client.get("/api/health").json()["status"] == "ok"

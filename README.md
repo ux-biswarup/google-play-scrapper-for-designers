@@ -17,10 +17,11 @@ A FastAPI backend is replacing the Streamlit app. It analyzes reviews in paralle
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn backend.main:app --reload --port 8000
+cd web && nvm use && npm install && npm run build && cd ..   # build the web app (Node 24)
+uvicorn backend.main:app --port 8000
 ```
 
-Interactive API docs: `http://localhost:8000/docs`. Import analyses from the old version with `python -m backend.cli import-legacy`.
+Open `http://localhost:8000`. For frontend development with hot reload, run `npm run dev` in `web/` and open `http://localhost:5173` (it proxies `/api` to the backend). Interactive API docs: `http://localhost:8000/docs`. Import analyses from the old version with `python -m backend.cli import-legacy`.
 
 What it returns for each analysis:
 - **Problem board:** themes ranked by impact (reach × negativity × momentum) with real review quotes

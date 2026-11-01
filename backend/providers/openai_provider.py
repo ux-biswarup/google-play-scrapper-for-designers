@@ -11,8 +11,21 @@ from .base import LLMConfig, LLMError, LLMProvider, ModelInfo, Usage, extract_js
 
 # Model ids containing these are not chat models (embeddings, audio, images, moderation...).
 _NON_CHAT_MARKERS = (
-    "embed", "tts", "whisper", "dall-e", "davinci", "babbage", "moderation", "transcribe",
-    "realtime", "audio", "image", "sora", "aqa", "imagen", "veo",
+    "embed",
+    "tts",
+    "whisper",
+    "dall-e",
+    "davinci",
+    "babbage",
+    "moderation",
+    "transcribe",
+    "realtime",
+    "audio",
+    "image",
+    "sora",
+    "aqa",
+    "imagen",
+    "veo",
 )
 
 
@@ -61,13 +74,8 @@ class OpenAICompatibleProvider(LLMProvider):
     async def complete_json(
         self, *, system: str, prompt: str, schema: dict[str, Any], max_tokens: int = 8000
     ) -> tuple[dict[str, Any], Usage]:
-        messages = [
-            {
-                "role": "system",
-                "content": f"{system}\n\nRespond with one JSON object that matches this JSON Schema:\n{json.dumps(schema)}",
-            },
-            {"role": "user", "content": prompt},
-        ]
+        instructions = f"{system}\n\nRespond with one JSON object that matches this JSON Schema:\n{json.dumps(schema)}"
+        messages = [{"role": "system", "content": instructions}, {"role": "user", "content": prompt}]
         # Token limits and temperature are omitted on purpose: parameter names and support differ
         # across OpenAI-compatible servers and reasoning models, and the defaults work everywhere.
         try:

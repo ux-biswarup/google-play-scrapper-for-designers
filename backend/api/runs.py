@@ -56,10 +56,17 @@ async def create_run(body: RunCreate, ctx: AppContext = Depends(get_ctx)) -> Run
     # Fail fast on missing keys/unknown providers before creating the run.
     await ctx.provider_factory(llm).aclose()
 
-    run_id = ctx.pipeline.create_run(RunRequest(
-        store_id=store_id, country=body.country, lang=body.lang, count=body.count, ratings=body.ratings,
-        output_language=body.output_language, llm=llm,
-    ))
+    run_id = ctx.pipeline.create_run(
+        RunRequest(
+            store_id=store_id,
+            country=body.country,
+            lang=body.lang,
+            count=body.count,
+            ratings=body.ratings,
+            output_language=body.output_language,
+            llm=llm,
+        )
+    )
     ctx.jobs.start(run_id, lambda cancel: ctx.pipeline.execute(run_id, llm, cancel))
     return RunOut.model_validate(_get_run(ctx, run_id))
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import create_engine, event
@@ -17,7 +17,7 @@ class Base(DeclarativeBase):
 
 def utcnow() -> datetime:
     """Naive UTC timestamp (SQLite has no timezone support; API layer marks values as UTC)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _make_engine(url: str) -> Engine:

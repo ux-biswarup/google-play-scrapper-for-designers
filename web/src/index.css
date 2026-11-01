@@ -1,0 +1,105 @@
+@import "tailwindcss";
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource-variable/newsreader";
+@import "@fontsource-variable/newsreader/wght-italic.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --paper: #f2f4f7;
+  --panel: #ffffff;
+  --ink: #1a2233;
+  --muted: #5b6577;
+  --line: #dde2e9;
+  --soft: #e9edf2;
+  --hl: #f2d635;
+  --neg: #d64545;
+  --pos: #2f9e66;
+  --neu: #8a93a3;
+  --warn: #b7700b;
+  color-scheme: light;
+}
+
+.dark {
+  --paper: #161c27;
+  --panel: #1e2533;
+  --ink: #e5e8ee;
+  --muted: #9aa3b2;
+  --line: #2e3747;
+  --soft: #262e3d;
+  --hl: #c9a92c;
+  --neg: #e26464;
+  --pos: #3db57a;
+  --neu: #7d8697;
+  --warn: #e0a43a;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-soft: var(--soft);
+  --color-hl: var(--hl);
+  --color-neg: var(--neg);
+  --color-pos: var(--pos);
+  --color-neu: var(--neu);
+  --color-warn: var(--warn);
+  --font-sans: "IBM Plex Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-quote: "Newsreader Variable", Georgia, serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Signature: a highlighter-pen mark, used only on problem theme names. */
+.highlight {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 52%,
+    color-mix(in oklab, var(--hl) 80%, transparent) 52%,
+    color-mix(in oklab, var(--hl) 80%, transparent) 90%,
+    transparent 90%
+  );
+  padding: 0 0.12em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.dark .highlight {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 52%,
+    color-mix(in oklab, var(--hl) 45%, transparent) 52%,
+    color-mix(in oklab, var(--hl) 45%, transparent) 90%,
+    transparent 90%
+  );
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

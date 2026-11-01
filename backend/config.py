@@ -15,9 +15,8 @@ class Settings:
     batch_size: int = 25
     llm_concurrency: int = 4
     max_reviews_per_run: int = 2000
-    cors_origins: tuple[str, ...] = field(
-        default=("http://localhost:5173", "http://127.0.0.1:5173")
-    )
+    web_dist: Path = ROOT_DIR / "web" / "dist"  # built frontend, served when present
+    cors_origins: tuple[str, ...] = field(default=("http://localhost:5173", "http://127.0.0.1:5173"))
 
     @property
     def db_url(self) -> str:

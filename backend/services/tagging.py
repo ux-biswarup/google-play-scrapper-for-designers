@@ -11,9 +11,16 @@ from ..providers import LLMError, LLMProvider, Usage
 
 CATEGORIES = ("bug", "feature_request", "ux_friction", "complaint", "praise", "question", "other")
 JOURNEY_STAGES = (
-    "install_onboarding", "account_login", "core_experience", "search_navigation",
-    "payments_subscription", "notifications", "settings_privacy", "support_help",
-    "app_updates", "other",
+    "install_onboarding",
+    "account_login",
+    "core_experience",
+    "search_navigation",
+    "payments_subscription",
+    "notifications",
+    "settings_privacy",
+    "support_help",
+    "app_updates",
+    "other",
 )
 EMOTIONS = ("frustration", "anger", "confusion", "disappointment", "neutral", "satisfaction", "delight")
 

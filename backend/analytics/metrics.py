@@ -31,29 +31,60 @@ class Dimension:
     multi: bool = False  # one review can have several values (themes)
 
 
-MEASURES: dict[str, Measure] = {m.name: m for m in (
-    Measure("review_count", "Reviews", "Number of reviews. Grouped by theme, it counts reviews mentioning the theme.",
-            "review_id", "count", "number"),
-    Measure("avg_rating", "Average rating", "Mean star rating (1-5).", "rating", "mean", "rating"),
-    Measure("negative_share", "Negative share", "Share of reviews rated 1-2 stars (0-1).", "_neg", "mean", "percent"),
-    Measure("neutral_share", "Neutral share", "Share of reviews rated 3 stars (0-1).", "_neu", "mean", "percent"),
-    Measure("positive_share", "Positive share", "Share of reviews rated 4-5 stars (0-1).", "_pos", "mean", "percent"),
-    Measure("helpful_votes", "Helpful votes", "Total 'helpful' votes other users gave these reviews.",
-            "thumbs_up", "sum", "number"),
-)}
+MEASURES: dict[str, Measure] = {
+    m.name: m
+    for m in (
+        Measure(
+            "review_count",
+            "Reviews",
+            "Number of reviews. Grouped by theme, it counts reviews mentioning the theme.",
+            "review_id",
+            "count",
+            "number",
+        ),
+        Measure("avg_rating", "Average rating", "Mean star rating (1-5).", "rating", "mean", "rating"),
+        Measure(
+            "negative_share", "Negative share", "Share of reviews rated 1-2 stars (0-1).", "_neg", "mean", "percent"
+        ),
+        Measure("neutral_share", "Neutral share", "Share of reviews rated 3 stars (0-1).", "_neu", "mean", "percent"),
+        Measure(
+            "positive_share", "Positive share", "Share of reviews rated 4-5 stars (0-1).", "_pos", "mean", "percent"
+        ),
+        Measure(
+            "helpful_votes",
+            "Helpful votes",
+            "Total 'helpful' votes other users gave these reviews.",
+            "thumbs_up",
+            "sum",
+            "number",
+        ),
+    )
+}
 
-DIMENSIONS: dict[str, Dimension] = {d.name: d for d in (
-    Dimension("date", "Date", "Review date, bucketed by time_grain (day, week or month).", "date"),
-    Dimension("rating", "Rating", "Star rating 1-5.", "rating"),
-    Dimension("sentiment", "Sentiment", "negative (1-2 stars), neutral (3), positive (4-5).", "sentiment"),
-    Dimension("app_version", "App version", "App version the reviewer was using.", "app_version"),
-    Dimension("category", "Feedback type", "bug, feature_request, ux_friction, complaint, praise, question, other.",
-              "category"),
-    Dimension("theme", "Theme", "Grouped topic of the feedback. A review can mention several themes.", "themes",
-              multi=True),
-    Dimension("journey_stage", "Journey stage", "Where in the user journey the feedback belongs.", "journey_stage"),
-    Dimension("emotion", "Emotion", "The reviewer's dominant emotion.", "emotion"),
-)}
+DIMENSIONS: dict[str, Dimension] = {
+    d.name: d
+    for d in (
+        Dimension("date", "Date", "Review date, bucketed by time_grain (day, week or month).", "date"),
+        Dimension("rating", "Rating", "Star rating 1-5.", "rating"),
+        Dimension("sentiment", "Sentiment", "negative (1-2 stars), neutral (3), positive (4-5).", "sentiment"),
+        Dimension("app_version", "App version", "App version the reviewer was using.", "app_version"),
+        Dimension(
+            "category",
+            "Feedback type",
+            "bug, feature_request, ux_friction, complaint, praise, question, other.",
+            "category",
+        ),
+        Dimension(
+            "theme",
+            "Theme",
+            "Grouped topic of the feedback. A review can mention several themes.",
+            "themes",
+            multi=True,
+        ),
+        Dimension("journey_stage", "Journey stage", "Where in the user journey the feedback belongs.", "journey_stage"),
+        Dimension("emotion", "Emotion", "The reviewer's dominant emotion.", "emotion"),
+    )
+}
 
 TIME_GRAINS = ("day", "week", "month")
 UNKNOWN = "unknown"
@@ -114,10 +145,12 @@ def apply_filters(
             continue
         dim = DIMENSIONS.get(name)
         if dim is None or name == "date":
-            raise ValueError(f"Cannot filter on '{name}'. Use one of: {', '.join(d for d in DIMENSIONS if d != 'date')}.")
+            raise ValueError(
+                f"Cannot filter on '{name}'. Use one of: {', '.join(d for d in DIMENSIONS if d != 'date')}."
+            )
         wanted = {str(v) for v in values}
         if dim.multi:
-            out = out[out[dim.column].apply(lambda items: any(str(i) in wanted for i in items))]
+            out = out[out[dim.column].apply(lambda items, wanted=wanted: any(str(i) in wanted for i in items))]
         else:
             out = out[out[dim.column].fillna(UNKNOWN).astype(str).isin(wanted)]
     return out

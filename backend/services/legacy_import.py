@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -62,17 +62,25 @@ def import_legacy_reports(db: Database, reports_dir: Path) -> list[str]:
             app.installs = app.installs or info.get("installs")
 
             run = Run(
-                id=uuid.uuid4().hex, app_id=app.id, country=None, lang=None, ratings=None,
-                requested_count=len(rows), provider=LEGACY_PROVIDER, model=LEGACY_MODEL,
-                status=RunStatus.COMPLETED, stage="done", progress_done=len(rows), progress_total=len(rows),
-                message="Imported from the previous version (themes only)", theme_map={},
-                created_at=datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).replace(tzinfo=None),
+                id=uuid.uuid4().hex,
+                app_id=app.id,
+                country=None,
+                lang=None,
+                ratings=None,
+                requested_count=len(rows),
+                provider=LEGACY_PROVIDER,
+                model=LEGACY_MODEL,
+                status=RunStatus.COMPLETED,
+                stage="done",
+                progress_done=len(rows),
+                progress_total=len(rows),
+                message="Imported from the previous version (themes only)",
+                theme_map={},
+                created_at=datetime.fromtimestamp(path.stat().st_mtime, UTC).replace(tzinfo=None),
                 finished_at=utcnow(),
             )
             s.add(run)
-            existing = {
-                r.store_review_id: r for r in s.scalars(select(Review).where(Review.app_id == app.id))
-            }
+            existing = {r.store_review_id: r for r in s.scalars(select(Review).where(Review.app_id == app.id))}
             model_key = f"{LEGACY_PROVIDER}:{LEGACY_MODEL}"
             seen: set[int] = set()
             for i, row in enumerate(rows):
@@ -80,9 +88,14 @@ def import_legacy_reports(db: Database, reports_dir: Path) -> list[str]:
                 review = existing.get(review_key)
                 if review is None:
                     review = Review(
-                        app_id=app.id, store_review_id=review_key, rating=int(row.get("rating") or 3),
-                        content=row.get("content") or "", reviewed_at=_parse_date(row.get("date")),
-                        app_version=None if row.get("app_version") in (None, "", "unknown") else str(row["app_version"]),
+                        app_id=app.id,
+                        store_review_id=review_key,
+                        rating=int(row.get("rating") or 3),
+                        content=row.get("content") or "",
+                        reviewed_at=_parse_date(row.get("date")),
+                        app_version=None
+                        if row.get("app_version") in (None, "", "unknown")
+                        else str(row["app_version"]),
                     )
                     s.add(review)
                     s.flush()

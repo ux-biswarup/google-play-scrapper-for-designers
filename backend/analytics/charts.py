@@ -67,7 +67,9 @@ def rating_distribution(df: pd.DataFrame, title: str) -> Figure:
 def sentiment_trend(df: pd.DataFrame, title: str, grain: str | None = None) -> Figure:
     fig, ax = _figure()
     grain = grain or auto_grain(df["date"])
-    rows = run_query(df, MetricsQuery(measures=["negative_share", "positive_share"], dimensions=["date"], time_grain=grain))
+    rows = run_query(
+        df, MetricsQuery(measures=["negative_share", "positive_share"], dimensions=["date"], time_grain=grain)
+    )
     if len(rows) < 2:
         _empty(ax, "Not enough dated reviews for a trend")
         return fig
@@ -93,7 +95,13 @@ def top_problems(df: pd.DataFrame, title: str, limit: int = 8) -> Figure:
         return fig
     problems = list(reversed(problems))
     bars = ax.barh([p["theme"] for p in problems], [p["impact"] for p in problems], color=NEGATIVE, height=0.6)
-    ax.bar_label(bars, labels=[f"{p['mentions']} review{'s' if p['mentions'] != 1 else ''}" for p in problems], padding=4, color=MUTED, fontsize=8)
+    ax.bar_label(
+        bars,
+        labels=[f"{p['mentions']} review{'s' if p['mentions'] != 1 else ''}" for p in problems],
+        padding=4,
+        color=MUTED,
+        fontsize=8,
+    )
     ax.grid(axis="y", visible=False)
     ax.grid(axis="x", color=GRID, linewidth=0.8)
     ax.set_xlabel("Impact score", color=MUTED)
