@@ -98,15 +98,10 @@ body {
   }
 }
 
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes fade-in {
+@keyframes pop-in {
   from {
     opacity: 0;
+    transform: translateY(-4px) scale(0.98);
   }
 }
 

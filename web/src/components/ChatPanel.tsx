@@ -265,7 +265,7 @@ function useTabs(runId: string, sessions: ChatSession[] | undefined) {
   return { tabs, activate, close, replace };
 }
 
-// ---- history drawer ----------------------------------------------------------------------------
+// ---- history dropdown ----------------------------------------------------------------------------
 
 type Listed = ChatSession & { snippet?: string | null };
 
@@ -296,21 +296,23 @@ function Mark({ text, query }: { text: string; query: string }) {
   );
 }
 
-/** Slides over the chat from the right: search across titles, questions and answers, grouped by date. */
-function HistoryDrawer({
+/** Drops down from the History button: search across titles, questions and answers, grouped by date. */
+function HistoryMenu({
   runId,
   sessions,
   openIds,
   onOpen,
   onDeleted,
   onClose,
+  anchor,
 }: {
   runId: string;
   sessions: ChatSession[];
   openIds: TabId[];
   onOpen: (id: string) => void;
   onDeleted: (id: string) => void;
-  onClose: () => void;
+  onClose: (returnFocus: boolean) => void;
+  anchor: React.RefObject<HTMLButtonElement | null>;
 }) {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
@@ -326,6 +328,15 @@ function HistoryDrawer({
   const panel = useRef<HTMLDivElement>(null);
   const searchBox = useRef<HTMLInputElement>(null);
   useEffect(() => searchBox.current?.focus(), []);
+  // Close when clicking anywhere outside the dropdown (the History button toggles it itself).
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!panel.current?.contains(target) && !anchor.current?.contains(target)) onClose(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [anchor, onClose]);
 
   const shown: Listed[] = deferred ? (search.data?.sessions ?? []) : sessions;
   const groups: [string, Listed[]][] = [];
@@ -353,49 +364,27 @@ function HistoryDrawer({
     refresh();
   }
 
-  // Keep keyboard focus inside the drawer while it's open; Esc closes it.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape" && !editing) {
       e.preventDefault();
-      onClose();
-      return;
-    }
-    if (e.key !== "Tab" || !panel.current) return;
-    const focusable = [...panel.current.querySelectorAll<HTMLElement>("button, input, [tabindex='0']")].filter(
-      (el) => !el.hasAttribute("disabled") && el.offsetParent !== null,
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last?.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first?.focus();
+      onClose(true);
     }
   };
 
   return (
-    <div className="absolute inset-0 z-20" onKeyDown={onKeyDown}>
-      <div className="absolute inset-0 animate-[fade-in_200ms_ease-out] bg-ink/20" onClick={onClose} aria-hidden />
       <div
         ref={panel}
+        id="chat-history"
         role="dialog"
-        aria-modal="true"
         aria-labelledby="chat-history-title"
-        className="absolute inset-y-0 right-0 flex w-[min(22rem,92%)] animate-[slide-in-right_200ms_ease-out] flex-col border-l border-line bg-panel shadow-2xl"
+        onKeyDown={onKeyDown}
+        className="absolute top-[calc(100%+4px)] right-2 z-30 flex max-h-[min(30rem,70vh)] w-[22rem] max-w-[calc(100%-1rem)] origin-top-right animate-[pop-in_140ms_ease-out] flex-col overflow-hidden rounded-xl border border-line bg-panel shadow-xl"
       >
-        <div className="flex h-11 shrink-0 items-center justify-between border-b border-line bg-soft pr-1.5 pl-4">
-          <h3 id="chat-history-title" className="text-sm font-semibold">
-            Chat history
-          </h3>
-          <button onClick={onClose} title="Close history (Esc)" className="grid size-7 place-items-center rounded-md text-muted hover:bg-panel hover:text-ink">
-            <X className="size-4" aria-hidden />
-            <span className="sr-only">Close history</span>
-          </button>
-        </div>
+        <h3 id="chat-history-title" className="sr-only">
+          Chat history
+        </h3>
 
-        <div className="shrink-0 px-3 pt-3 pb-2">
+        <div className="shrink-0 border-b border-line px-3 pt-3 pb-2">
           <div role="search" className="relative">
             <label htmlFor="chat-history-search" className="sr-only">
               Search chats
@@ -437,15 +426,17 @@ function HistoryDrawer({
             )}
           </div>
           <p className="mt-2 px-1 text-xs text-muted" aria-live="polite">
-            {deferred
-              ? search.isFetching && !search.data
+            {!deferred
+              ? "Chats about this analysis only. Other analyses have their own."
+              : search.isFetching && !search.data
                 ? "Searching…"
-                : `${shown.length} ${shown.length === 1 ? "chat" : "chats"} match`
-              : "Chats about this analysis only. Other analyses have their own."}
+                : shown.length > 0
+                  ? `${shown.length} ${shown.length === 1 ? "chat" : "chats"} match`
+                  : "No matches"}
           </p>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pt-1 pb-2">
           {sessions.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-muted">No chats yet. Your conversations about this analysis appear here.</p>
           ) : deferred && search.data && shown.length === 0 ? (
@@ -538,7 +529,6 @@ function HistoryDrawer({
           )}
         </div>
       </div>
-    </div>
   );
 }
 
@@ -554,10 +544,10 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
   const active = tabs.active;
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyButton = useRef<HTMLButtonElement>(null);
-  const closeHistory = () => {
+  const closeHistory = useCallback((returnFocus = true) => {
     setHistoryOpen(false);
-    historyButton.current?.focus();
-  };
+    if (returnFocus) historyButton.current?.focus();
+  }, []);
 
   // Per-tab state, so replies keep streaming and drafts survive while you look at another tab.
   const [drafts, setDrafts] = useState<Record<TabId, string>>({});
@@ -685,7 +675,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
     <aside aria-label={`Assistant for ${appName}`} className="relative flex h-full flex-col bg-panel">
       {/* One row on a tinted ribbon: open chats as compact tags (the active one is white like the chat below),
           then New chat, History and Close. */}
-      <header className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-soft pl-1.5">
+      <header className="relative flex h-11 shrink-0 items-center gap-1 border-b border-line bg-soft pl-1.5">
         <div
           ref={tabStrip}
           role="tablist"
@@ -744,6 +734,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
             ref={historyButton}
             onClick={() => (historyOpen ? closeHistory() : setHistoryOpen(true))}
             aria-haspopup="dialog"
+            aria-controls={historyOpen ? "chat-history" : undefined}
             aria-expanded={historyOpen}
             title="Chat history"
             className={cx(
@@ -759,21 +750,22 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
             <span className="sr-only">Close assistant</span>
           </button>
         </div>
+        {historyOpen && (
+          <HistoryMenu
+            runId={run.id}
+            sessions={sessions ?? []}
+            openIds={tabs.open}
+            onOpen={(id) => {
+              activate(id);
+              setHistoryOpen(false);
+            }}
+            onDeleted={close}
+            onClose={closeHistory}
+            anchor={historyButton}
+          />
+        )}
       </header>
 
-      {historyOpen && (
-        <HistoryDrawer
-          runId={run.id}
-          sessions={sessions ?? []}
-          openIds={tabs.open}
-          onOpen={(id) => {
-            activate(id);
-            setHistoryOpen(false);
-          }}
-          onDeleted={close}
-          onClose={closeHistory}
-        />
-      )}
 
       <>
           <div role="tabpanel" aria-label={titleOf(active)} className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-live="polite">

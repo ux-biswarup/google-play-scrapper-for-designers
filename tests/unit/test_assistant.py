@@ -221,6 +221,22 @@ def test_long_tool_results_stay_valid_json():
     assert fit_json({"a": 1}) == '{"a": 1}'
 
 
+def test_snippets_are_plain_text():
+    from backend.api.chat import snippet
+
+    text = "The **core experience** stage [[r:abc]] loses the most `users`."
+    assert snippet(text, "core") == "The core experience stage loses the most users."
+    assert snippet(text, "absent") is None
+    long = (
+        "Many reviewers describe the onboarding as slow and confusing, and the biggest drop happens at the "
+        "core experience stage where most users stop playing after a week."
+    )
+    cut = snippet(long, "core experience")
+    assert cut.startswith("…") and cut.endswith("…") and "core experience" in cut
+    words = set(long.split())
+    assert all(w in words for w in cut.strip("…").split())  # no half words at either end
+
+
 def test_reviews_are_recovered_from_results_cut_by_older_versions():
     from backend.api.chat import _reviews_in
 

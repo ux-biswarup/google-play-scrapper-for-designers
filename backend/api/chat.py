@@ -214,17 +214,23 @@ def transcript(history: list[ChatMessage]) -> list[dict]:
 
 
 _CITE = re.compile(r"\[\[r:[^\]]*\]\]")
+_MARKDOWN = re.compile(r"[*`#>]+|__")  # formatting marks that would show up literally in a snippet
 SNIPPET_CHARS = 90
 
 
 def snippet(text: str, query: str) -> str | None:
     """A short excerpt of text around the first match of query (case-insensitive), or None."""
-    clean = " ".join(_CITE.sub("", text).split())
+    clean = " ".join(_MARKDOWN.sub("", _CITE.sub("", text)).split())
     at = clean.lower().find(query)
     if at < 0:
         return None
     start = max(0, at - 30)
+    if start:  # begin at a word, not in the middle of one
+        space = clean.find(" ", start, at)
+        start = space + 1 if space >= 0 else at
     end = min(len(clean), start + SNIPPET_CHARS)
+    if end < len(clean) and " " in clean[start:end]:
+        end = clean.rfind(" ", start, end)
     return ("…" if start else "") + clean[start:end].strip() + ("…" if end < len(clean) else "")
 
 
