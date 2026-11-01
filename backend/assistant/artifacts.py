@@ -161,7 +161,7 @@ class FactSheet:
                 return {"comparison": None}
             pivot, mode = (dated.min() + (dated.max() - dated.min()) / 2).strftime("%Y-%m-%d"), "date"
         cmp = trends.compare(self.df, mode, pivot)
-        shift = ("theme", "before_share", "after_share", "after_count")
+        shift = ("theme", "before_count", "after_count", "before_share", "after_share")
         return {
             "comparison": {
                 "compared": f"app version {pivot} vs earlier"
@@ -384,6 +384,20 @@ def _ids(value: Any, citable: dict) -> list[str]:
     return [str(i) for i in (value or []) if str(i) in citable][:4]
 
 
+_ID_LIST = re.compile(r"\s*\(?\b(?:review[ _]?ids?|reviews?|ids?)\s*:?\s*\[[^\]]*\]\)?\.?", re.IGNORECASE)
+
+
+def _strip_ids(text: str, citable: dict) -> tuple[str, list[str]]:
+    """Models sometimes write citations into prose ("Review IDs: ['abc', ...]"). Pull out the real ones and
+    remove the clutter from the text."""
+    found = [rid for rid in citable if rid in text]
+    cleaned = _ID_LIST.sub("", text)
+    for rid in found:
+        cleaned = cleaned.replace(rid, "")
+    cleaned = re.sub(r"\[\s*[,'\"\s]*\]|\(\s*\)", "", cleaned)
+    return " ".join(cleaned.split()).strip(), found
+
+
 def _matching_ids(text: str, citable: dict, n: int = 2) -> list[str]:
     """Fallback evidence when the model forgot to cite: reviews whose themes appear in the point's text."""
     lowered = text.lower()
@@ -434,9 +448,10 @@ def _clean_decisions(data: dict, citable: dict, previous: dict | None) -> dict:
                 "lens": lens,
                 "action": str(item.get("action") or "investigate"),
                 "theme": theme,
-                "problem": str(item.get("problem") or ""),
-                "evidence": str(item.get("evidence") or ""),
-                "review_ids": _ids(item.get("review_ids"), citable),
+                "problem": _strip_ids(str(item.get("problem") or ""), citable)[0],
+                "evidence": _strip_ids(str(item.get("evidence") or ""), citable)[0],
+                "review_ids": _ids(item.get("review_ids"), citable)
+                or _strip_ids(f"{item.get('problem', '')} {item.get('evidence', '')}", citable)[1][:4],
                 "who": str(item.get("who") or ""),
                 "root_causes": [str(x) for x in item.get("root_causes") or []][:3],
                 "how_might_we": [str(x) for x in item.get("how_might_we") or []][:3],
@@ -464,8 +479,9 @@ def _clean_points(items: Any, citable: dict) -> list[dict]:
     for p in items or []:
         if not isinstance(p, dict) or not p.get("heading"):
             continue
-        heading, detail = str(p.get("heading", "")), str(p.get("detail", ""))
-        ids = _ids(p.get("review_ids"), citable) or _matching_ids(f"{heading} {detail}", citable)
+        heading = str(p.get("heading", ""))
+        detail, inline_ids = _strip_ids(str(p.get("detail", "")), citable)
+        ids = _ids(p.get("review_ids"), citable) or inline_ids[:4] or _matching_ids(f"{heading} {detail}", citable)
         points.append({"heading": heading, "detail": detail, "review_ids": ids})
     return points
 
@@ -500,16 +516,46 @@ def _clean_report(data: dict, citable: dict, facts: FactSheet) -> dict:
     }
 
 
-def _clean_what_changed(data: dict, citable: dict, facts_change: dict) -> dict:
+def change_kind(before_count: int, after_count: int, before_share: float, after_share: float, praise: bool) -> str:
+    """Label a theme's change from the numbers (never from the model's wording)."""
+    if before_count == 0 and after_count >= 2:
+        return "new"
+    delta = after_share - before_share
+    if abs(delta) < 0.01:  # under one percentage point
+        return "steady"
+    return "better" if (delta > 0) == praise else "worse"
+
+
+def _clean_what_changed(data: dict, citable: dict, facts_change: dict, praise_themes: set[str]) -> dict:
+    comparison = facts_change.get("comparison") or {}
+    shifts = {
+        s["theme"].lower(): s
+        for key in ("new_themes", "rising_themes", "falling_themes")
+        for s in comparison.get(key) or []
+    }
+
+    def kind_for(change: dict) -> str:
+        shift = shifts.get(str(change.get("theme", "")).lower())
+        if shift is None:
+            return change.get("kind") if change.get("kind") in ("new", "worse", "better", "steady") else "steady"
+        return change_kind(
+            shift["before_count"],
+            shift["after_count"],
+            shift["before_share"],
+            shift["after_share"],
+            praise=shift["theme"] in praise_themes,
+        )
+
     return {
         "headline": str(data.get("headline") or ""),
         "compared": (facts_change.get("comparison") or {}).get("compared"),
         "changes": [
             {
-                "kind": c.get("kind") if c.get("kind") in ("new", "worse", "better", "steady") else "steady",
+                "kind": kind_for(c),
                 "theme": str(c.get("theme", "")),
-                "detail": str(c.get("detail", "")),
-                "review_ids": _ids(c.get("review_ids"), citable),
+                "detail": _strip_ids(str(c.get("detail", "")), citable)[0],
+                "review_ids": _ids(c.get("review_ids"), citable)
+                or _strip_ids(str(c.get("detail", "")), citable)[1][:4],
             }
             for c in data.get("changes") or []
             if isinstance(c, dict) and c.get("detail")
@@ -564,7 +610,8 @@ async def generate(kind: str, provider: LLMProvider, df: pd.DataFrame, run: Run,
         newer = facts.problems(limit=8, quotes=2)
         sheet |= {"current_problems": newer["problems"]}
         task, schema = WHAT_CHANGED_TASK, WHAT_CHANGED_SCHEMA
-        clean = lambda d: _clean_what_changed(d, facts.citable, change)  # noqa: E731
+        praise = {t["theme"] for t in problem_board(df, limit=30, quotes=0)["strengths"]}
+        clean = lambda d: _clean_what_changed(d, facts.citable, change, praise)  # noqa: E731
     else:
         sheet |= {"user_types": facts.user_types(), "journey": facts.journey()} | facts.problems(limit=8, quotes=1)
         sheet |= {"detailed_reviews": facts.detailed_reviews()}

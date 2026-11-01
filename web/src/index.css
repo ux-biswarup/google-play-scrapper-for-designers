@@ -155,3 +155,17 @@ body {
   padding: 0.3rem 0.4rem;
   text-align: left;
 }
+
+/* Printing (e.g. "Save as PDF" for the research report): white page, no app chrome, no scroll containers. */
+@media print {
+  :root {
+    --paper: #ffffff;
+  }
+  html,
+  body,
+  #root,
+  main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}

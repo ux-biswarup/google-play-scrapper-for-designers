@@ -5,6 +5,7 @@ import { api, type Comparison, type Grain, type Run } from "../../lib/api";
 import { num, pct, plural, rating, shortDate } from "../../lib/format";
 import { Plot, useChartColors } from "../../components/Plot";
 import { Badge, Field, Notice, Panel, Segmented, Select, Spinner } from "../../components/ui";
+import { WhatChangedPanel } from "./WhatChanged";
 
 function pickGrain(run: Run): Grain {
   // A rough guess before data loads; users can switch.
@@ -140,6 +141,7 @@ export function TrendsTab({ run }: { run: Run }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <WhatChangedPanel run={run} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">
           {plural(t.series.length, grain, `${grain}s`)} of reviews. Short ranges work best per day.

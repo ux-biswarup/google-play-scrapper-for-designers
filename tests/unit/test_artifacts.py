@@ -59,3 +59,23 @@ def test_what_changed_and_personas(client):
     personas = client.post(f"/api/runs/{run_id}/artifacts/personas", json=LLM).json()["artifact"]["content"]
     assert personas["personas"][0]["name"] == "The veteran" and personas["reviews"]
     assert client.get(f"/api/runs/{run_id}/artifacts/nonsense").status_code == 404
+
+
+def test_inline_review_ids_become_citations():
+    from backend.assistant.artifacts import _clean_points
+
+    citable = {"abc-123": {"themes": []}}
+    points = _clean_points(
+        [{"heading": "Login", "detail": "It fails. Review IDs: ['abc-123', 'made-up']", "review_ids": []}], citable
+    )
+    assert points == [{"heading": "Login", "detail": "It fails.", "review_ids": ["abc-123"]}]
+
+
+def test_change_labels_come_from_the_numbers():
+    from backend.assistant.artifacts import change_kind
+
+    assert change_kind(0, 3, 0.0, 0.05, praise=False) == "new"
+    assert change_kind(2, 9, 0.02, 0.09, praise=False) == "worse"  # a problem mentioned more often
+    assert change_kind(5, 3, 0.05, 0.03, praise=False) == "better"  # a problem mentioned less
+    assert change_kind(5, 9, 0.05, 0.09, praise=True) == "better"  # praise mentioned more
+    assert change_kind(4, 4, 0.040, 0.045, praise=False) == "steady"

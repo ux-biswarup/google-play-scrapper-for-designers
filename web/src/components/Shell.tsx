@@ -142,7 +142,7 @@ export function Shell() {
 
   return (
     <div className="flex h-full">
-      <aside className="hidden w-72 shrink-0 border-r border-line bg-panel lg:block">{sidebar}</aside>
+      <aside className="hidden w-72 shrink-0 border-r border-line bg-panel lg:block print:hidden">{sidebar}</aside>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-ink/30" onClick={() => setOpen(false)} aria-hidden />
@@ -150,7 +150,7 @@ export function Shell() {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-line bg-panel px-4 py-3 lg:hidden">
+        <header className="flex items-center gap-3 border-b border-line bg-panel px-4 py-3 lg:hidden print:hidden">
           <button onClick={() => setOpen(true)} aria-label="Open menu" className="rounded p-1 text-muted hover:text-ink">
             <Menu className="size-5" />
           </button>

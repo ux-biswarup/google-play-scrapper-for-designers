@@ -8,6 +8,10 @@ Turn Google Play reviews into design and product decisions. Review Insights down
 
 ## What you get for each analysis
 
+**Decide**
+- **Decisions:** ranked design and product decisions (fix, redesign, build, reconsider, protect) in Now / Next / Later, each with evidence, likely causes, How Might We questions, options, a metric to watch and a status you can track
+- **Research report:** a shareable UX research report with quotes; download as Markdown or save as PDF
+
 **Understand**
 - **Overview:** rating, sentiment, feedback-type, journey and emotion breakdowns, and the biggest problems
 - **Problems & priorities:** themes ranked by impact (reach × negativity × momentum) and a priority matrix
@@ -16,9 +20,11 @@ Turn Google Play reviews into design and product decisions. Review Insights down
 - **Emotions:** what each feeling implies, which themes trigger it, and how it changes over time
 - **Segments:** new vs long-time vs paying users, app versions, upvoted reviews, detailed reviews, developer replies
 - **Risks:** people who say they're leaving and why, competitors they name, money problems
+- **Personas:** proto-personas drafted from reviews, clearly marked as hypotheses
 
 **Track and explore**
-- **Trends & what changed:** sentiment over time, one-star spikes, trending themes, before/after a release
+- **Trends & what changed:** a written summary of what got better or worse in the latest release (labels computed from the numbers), sentiment over time, one-star spikes, trending themes, before/after a release
+- **Any period:** analyze any time, the last 7/30/90 days or a custom date range; the app counts the reviews in that period first so you choose how many to analyze
 - **Reviews:** filter by rating, theme, type, journey stage, emotion, version or text
 - **Research assistant:** ask questions; answers look up the analysis and cite the exact reviews
 - **Chart images** (PNG/SVG) for slides and reports
@@ -71,20 +77,18 @@ Results are stored locally in `data/app.db` (git-ignored). Analyses made with th
 
 ## Roadmap
 
-- **Decisions:** ranked design and product decisions with evidence, How Might We questions, options and metrics to watch
-- **Research report:** one-click UX research report with Markdown and PDF export
-- **What changed:** a written summary of what got better or worse since the last release
-- **Personas:** proto-personas drafted from reviews, marked as hypotheses
 - **Benchmark:** compare analyses of competitors, markets or periods
 - **Accessibility and developer replies:** dedicated views
 - **iOS reviews**
 
 ## Security
 
+- **API keys never live in the browser.** Keys you paste are saved by the backend, encrypted (AES + HMAC) in `data/secrets.enc`; the encryption key is kept in your operating system's keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service), or in an owner-only file where no keychain exists. The app only ever shows a masked hint. Choose "this session only" to keep a key in memory until the app stops.
+- ChatGPT sign-in tokens are encrypted the same way.
+- The server answers only on local host names and refuses changes requested by other websites, so a page open in your browser can't use your saved keys. App pages use a strict Content-Security-Policy.
+- The MCP endpoint only accepts local requests unless you set `MCP_ALLOWED_HOSTS`.
 - `.env` and other credential files are git-ignored. Optionally install the pre-commit hook that blocks committing them:
   `cp .github/pre-commit-hook.sh .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
-- The MCP endpoint only accepts local requests unless you set `MCP_ALLOWED_HOSTS`.
-- ChatGPT sign-in tokens are stored only in `data/chatgpt-auth.json` with owner-only permissions.
 
 ## License
 

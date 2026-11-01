@@ -5,13 +5,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, TrendingDown, TrendingUp } from "lucide-react";
 import { api, type Review, type Run, type Theme } from "../../lib/api";
 import { label, num, pct, plural, rating, shortDate } from "../../lib/format";
-import { Badge, EmptyState, Notice, Panel, Spinner, Stars } from "../../components/ui";
+import { Badge, EmptyState, Notice, Panel, Spinner, Stars, cx } from "../../components/ui";
 import { Plot, useChartColors } from "../../components/Plot";
 
-export function Quote({ review }: { review: Review }) {
+export function Quote({ review, clamp = false }: { review: Review; clamp?: boolean }) {
   return (
     <figure className="border-l-2 border-line pl-4">
-      <blockquote className="font-quote text-[1.05rem] leading-relaxed">{review.content}</blockquote>
+      <blockquote className={cx("font-quote text-[1.05rem] leading-relaxed", clamp && "line-clamp-4")} title={clamp ? review.content : undefined}>
+        {review.content}
+      </blockquote>
       <figcaption className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-muted">
         <Stars value={review.rating} />
         <span>{shortDate(review.date)}</span>

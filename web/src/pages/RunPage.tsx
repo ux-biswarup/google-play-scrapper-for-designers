@@ -17,6 +17,9 @@ import { JourneyTab } from "./tabs/Journey";
 import { EmotionsTab } from "./tabs/Emotions";
 import { SegmentsTab } from "./tabs/Segments";
 import { RisksTab } from "./tabs/Risks";
+import { DecisionsTab } from "./tabs/Decisions";
+import { ReportTab } from "./tabs/Report";
+import { PersonasTab } from "./tabs/Personas";
 
 const isActive = (run: Run) => run.status === "queued" || run.status === "running";
 
@@ -121,6 +124,13 @@ function Failed({ run }: { run: Run }) {
 
 const VIEW_GROUPS = [
   {
+    label: "Decide",
+    views: [
+      { id: "decisions", label: "Decisions" },
+      { id: "report", label: "Research report" },
+    ],
+  },
+  {
     label: "Understand",
     views: [
       { id: "overview", label: "Overview" },
@@ -130,6 +140,7 @@ const VIEW_GROUPS = [
       { id: "emotions", label: "Emotions" },
       { id: "segments", label: "Segments" },
       { id: "risks", label: "Risks" },
+      { id: "personas", label: "Personas" },
     ],
   },
   { label: "Track", views: [{ id: "trends", label: "Trends & what changed" }] },
@@ -140,7 +151,7 @@ const TABS: { id: TabId; label: string }[] = VIEW_GROUPS.flatMap((g) => [...g.vi
 
 function ViewNav({ tab, onSelect }: { tab: TabId; onSelect: (id: TabId) => void }) {
   return (
-    <nav aria-label="Analysis views" className="lg:sticky lg:top-6 lg:self-start">
+    <nav aria-label="Analysis views" className="lg:sticky lg:top-6 lg:self-start print:hidden">
       {/* Wide screens: grouped vertical list. Narrow screens: one scrollable row. */}
       <div className="hidden flex-col gap-5 lg:flex">
         {VIEW_GROUPS.map((group) => (
@@ -230,7 +241,7 @@ function Dashboard({ run }: { run: Run }) {
             <span>{shortDate(run.created_at)}</span>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 print:hidden">
           {run.app.store_url && (
             <a
               href={run.app.store_url}
@@ -277,6 +288,9 @@ function Dashboard({ run }: { run: Run }) {
           {tab === "emotions" && <EmotionsTab run={run} />}
           {tab === "segments" && <SegmentsTab run={run} />}
           {tab === "risks" && <RisksTab run={run} />}
+          {tab === "decisions" && <DecisionsTab run={run} />}
+          {tab === "report" && <ReportTab run={run} />}
+          {tab === "personas" && <PersonasTab run={run} />}
           {tab === "trends" && <TrendsTab run={run} />}
           {tab === "reviews" && <ReviewsTab run={run} />}
         </div>
@@ -284,7 +298,7 @@ function Dashboard({ run }: { run: Run }) {
     </div>
     </div>
     {chatOpen && (
-      <div className="fixed inset-0 z-40 lg:static lg:z-auto lg:w-[26rem] lg:shrink-0 lg:border-l lg:border-line">
+      <div className="fixed inset-0 z-40 lg:static lg:z-auto lg:w-[26rem] lg:shrink-0 lg:border-l lg:border-line print:hidden">
         <ChatPanel run={run} onClose={() => toggleChat(false)} />
       </div>
     )}

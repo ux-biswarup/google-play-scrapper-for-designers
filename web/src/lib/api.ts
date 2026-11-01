@@ -495,3 +495,96 @@ export const keysApi = {
     request<SavedKey>(`/keys/${provider}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey, remember }) }),
   remove: (provider: string) => request<void>(`/keys/${provider}`, { method: "DELETE" }),
 };
+
+// ---- AI-written decision artifacts --------------------------------------------------------------
+
+export type Level = "high" | "medium" | "low";
+export type DecisionStatus = "todo" | "planned" | "in_progress" | "done" | "dismissed";
+export type CitedReviewFull = {
+  review_id: string;
+  rating: number;
+  date: string | null;
+  content: string;
+  app_version: string;
+  thumbs_up: number;
+  themes: string[];
+};
+
+export type Decision = {
+  id: string;
+  title: string;
+  lens: "design" | "product";
+  action: string;
+  theme: string;
+  problem: string;
+  evidence: string;
+  review_ids: string[];
+  who: string;
+  root_causes: string[];
+  how_might_we: string[];
+  options: { idea: string; effort: Level }[];
+  impact: Level;
+  confidence: Level;
+  effort: Level;
+  score: number;
+  priority: "now" | "next" | "later";
+  metric: string;
+  risk_of_inaction: string;
+  status: DecisionStatus;
+};
+
+type Point = { heading: string; detail: string; review_ids: string[] };
+type WithReviews = { reviews: Record<string, CitedReviewFull> };
+
+export type ArtifactContent = {
+  decisions: { decisions: Decision[] } & WithReviews;
+  report: {
+    title: string;
+    summary: string;
+    method: string;
+    key_findings: Point[];
+    user_needs: string[];
+    opportunities: Point[];
+    recommendations: { heading: string; detail: string; when: "now" | "next" | "later" }[];
+    open_questions: string[];
+  } & WithReviews;
+  what_changed: {
+    headline: string;
+    compared: string | null;
+    changes: { kind: "new" | "worse" | "better" | "steady"; theme: string; detail: string; review_ids: string[] }[];
+    next_step: string;
+  } & WithReviews;
+  personas: {
+    personas: {
+      name: string;
+      who: string;
+      goals: string[];
+      frustrations: string[];
+      behaviours: string[];
+      how_common: string;
+      design_implications: string[];
+      review_ids: string[];
+    }[];
+  } & WithReviews;
+};
+export type ArtifactKind = keyof ArtifactContent;
+export type Artifact<K extends ArtifactKind> = {
+  kind: K;
+  content: ArtifactContent[K];
+  provider: string;
+  model: string;
+  created_at: string;
+};
+
+export const artifactsApi = {
+  get: <K extends ArtifactKind>(runId: string, kind: K) =>
+    request<{ artifact: Artifact<K> | null }>(`/runs/${runId}/artifacts/${kind}`),
+  generate: <K extends ArtifactKind>(runId: string, kind: K, llm: LLMConfig) =>
+    request<{ artifact: Artifact<K> }>(`/runs/${runId}/artifacts/${kind}`, post({ llm })),
+  setStatus: (runId: string, id: string, status: DecisionStatus) =>
+    request<{ artifact: Artifact<"decisions"> }>(`/runs/${runId}/artifacts/decisions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  markdownUrl: (runId: string) => `/api/runs/${runId}/artifacts/report/markdown`,
+};
