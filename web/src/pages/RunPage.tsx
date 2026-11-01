@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Loader2, MessageSquareText, RotateCcw, Trash2 } from "lucide-react";
+import { Check, Columns3, ExternalLink, Loader2, MessageSquareText, RotateCcw, Trash2 } from "lucide-react";
 import { api, type Run } from "../lib/api";
 import { STAGES, compact, flag, num, plural, ratingFilterLabel, shortDate } from "../lib/format";
 import { countryName } from "../lib/locales";
@@ -255,6 +255,11 @@ function Dashboard({ run }: { run: Run }) {
           {!chatOpen && (
             <Button size="sm" variant="primary" onClick={() => toggleChat(true)}>
               <MessageSquareText className="size-4" aria-hidden /> Ask AI
+            </Button>
+          )}
+          {run.status === "completed" && run.provider !== "legacy" && (
+            <Button size="sm" onClick={() => navigate(`/benchmark?add=${run.id}`)}>
+              <Columns3 className="size-4" aria-hidden /> Compare
             </Button>
           )}
           <Button size="sm" onClick={() => navigate("/new", { state: { rerun: run } })}>

@@ -149,10 +149,25 @@ def _fake_core_tag(text: str) -> dict:
 
 def _fake_artifact(props: dict, prompt: str) -> dict | None:
     """Scripted decision artifacts that cite one real review id and one invented id."""
+    if "topics" in props and "THEMES:" in prompt:
+        return {
+            "topics": [
+                {"name": "login", "members": {"A": ["login problems", "not a real theme"], "B": ["login problems"]}},
+                {"name": "Dark  Mode", "members": {"B": ["dark mode request"]}},
+                {"name": "nothing", "members": {"A": ["invented"]}},
+            ]
+        }
     if "FACTS:" not in prompt:
         return None
     real = re.search(r'"id": "([^"]+)"', prompt.split("FACTS:", 1)[1]).group(1)
     ids = [real, "made-up-id"]
+    if "points" in props:  # benchmark: explain the first finding, cite an invented id for the second
+        found = re.findall(r'"finding": "(F\d+)"', prompt)
+        return {
+            "headline": "Example App compares well.",
+            "points": [{"finding": f, "point": "Users say so.", "review_ids": [real, "made-up-id"]} for f in found[:1]]
+            + [{"finding": f, "point": "", "review_ids": ["made-up-id"]} for f in found[1:2]],
+        }
     if "decisions" in props:
         decision = {
             "title": "Make login reliable",

@@ -44,7 +44,7 @@ def chat_tools() -> list[ToolSpec]:
     """Tools for the in-app chat: bound to the current analysis, so run_id is filled in automatically."""
     specs = []
     for tool in TOOLS.values():
-        if tool.name == "list_analyses":
+        if tool.name in ("list_analyses", "compare_analyses"):  # about other analyses; MCP only
             continue
         params = json.loads(json.dumps(tool.parameters))
         params.get("properties", {}).pop("run_id", None)

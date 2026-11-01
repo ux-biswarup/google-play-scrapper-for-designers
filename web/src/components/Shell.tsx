@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Menu, Moon, Plug, Plus, Settings2, Sun, X } from "lucide-react";
+import { Columns3, Loader2, Menu, Moon, Plug, Plus, Settings2, Sun, X } from "lucide-react";
 import { api, type Run } from "../lib/api";
 import { flag, plural, relativeTime } from "../lib/format";
 import { useConnection, useTheme } from "../lib/settings";
@@ -88,6 +88,15 @@ export function Shell() {
         className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 font-medium text-paper hover:opacity-90"
       >
         <Plus className="size-4" aria-hidden /> New analysis
+      </NavLink>
+      <NavLink
+        to="/benchmark"
+        className={({ isActive }) =>
+          cx("-mt-2 flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-soft", isActive && "bg-soft")
+        }
+      >
+        <Columns3 className="size-4 text-muted" aria-hidden />
+        Benchmark against competitors
       </NavLink>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

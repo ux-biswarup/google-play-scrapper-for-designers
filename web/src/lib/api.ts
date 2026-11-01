@@ -588,3 +588,54 @@ export const artifactsApi = {
     }),
   markdownUrl: (runId: string) => `/api/runs/${runId}/artifacts/report/markdown`,
 };
+
+// ---- Benchmarks ---------------------------------------------------------------------------------
+
+export type RunSummary = {
+  reviews: number;
+  avg_rating: number | null;
+  negative_share: number | null;
+  positive_share: number | null;
+  churn_share: number | null;
+  ratings: Record<string, number>;
+  feedback_types: Record<string, number>;
+  emotions: Record<string, number>;
+  journey: Record<string, { reviews: number; share: number; negative_share: number }>;
+  top_problems: { theme: string; reach: number; negative_share: number }[];
+  top_strengths: { theme: string; reach: number }[];
+};
+
+export type BenchmarkBrief = {
+  id: string;
+  name: string;
+  apps: { run_id: string; title: string; icon_url: string | null; country: string | null }[];
+  updated_at: string;
+};
+
+type BenchPoint = { point: string; review_ids: string[]; subject?: string; scope?: string; evidence?: string };
+export type BenchmarkInsights = {
+  headline: string;
+  topics: { name: string; apps: { themes: string[]; mentions: number; share: number; negative_share: number | null }[] }[];
+  leads: BenchPoint[];
+  lags: BenchPoint[];
+  opportunities: BenchPoint[];
+  reviews: Record<string, CitedReviewFull & { app?: string }>;
+};
+
+export type BenchmarkDetail = {
+  id: string;
+  name: string;
+  columns: { run: Run; summary: RunSummary }[];
+  insights: BenchmarkInsights | null;
+  provider: string | null;
+  model: string | null;
+  updated_at: string;
+};
+
+export const benchmarksApi = {
+  list: () => request<BenchmarkBrief[]>("/benchmarks"),
+  create: (runIds: string[], name?: string) => request<BenchmarkBrief>("/benchmarks", post({ run_ids: runIds, name: name || null })),
+  get: (id: string) => request<BenchmarkDetail>(`/benchmarks/${id}`),
+  insights: (id: string, llm: LLMConfig) => request<BenchmarkDetail>(`/benchmarks/${id}/insights`, post({ llm })),
+  remove: (id: string) => request<void>(`/benchmarks/${id}`, { method: "DELETE" }),
+};

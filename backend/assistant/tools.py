@@ -305,6 +305,24 @@ def get_risks(ctx: ToolContext, run_id: str) -> dict:
     return data
 
 
+@tool
+def compare_analyses(ctx: ToolContext, run_ids: list[str]) -> dict:
+    """Compare 2-4 analyses side by side (your app vs competitors, markets or periods): rating, negative share,
+    churn, feedback types, emotions, journey-stage negativity and top problems. Get run_ids from list_analyses."""
+    from ..analytics.benchmark import run_summary
+
+    if not 2 <= len(run_ids) <= 4:
+        raise ValueError("Compare between 2 and 4 analyses.")
+    out = []
+    for run_id in run_ids:
+        df = _frame(ctx, run_id)
+        with ctx.db.session() as s:
+            run = s.get(Run, run_id)
+            name = run.app.title or run.app.store_id
+        out.append({"run_id": run_id, "app": name, "country": run.country, **run_summary(df)})
+    return {"analyses": out}
+
+
 def run_tool(ctx: ToolContext, name: str, args: dict) -> Any:
     if name not in TOOLS:
         raise ValueError(f"Unknown tool '{name}'.")

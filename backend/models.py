@@ -166,3 +166,18 @@ class Artifact(Base):
     provider: Mapped[str] = mapped_column(String(32))
     model: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class Benchmark(Base):
+    """A saved comparison of 2-4 analyses (competitors, markets or periods). The first run is "yours"."""
+
+    __tablename__ = "benchmarks"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    run_ids: Mapped[list[str]] = mapped_column(JSON)
+    content: Mapped[dict[str, Any] | None] = mapped_column(JSON)  # AI topic alignment + summary
+    provider: Mapped[str | None] = mapped_column(String(32))
+    model: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
