@@ -181,3 +181,16 @@ class Benchmark(Base):
     model: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class Pin(Base):
+    """A review quote pinned to an analysis as evidence, with an optional note. Included in the report export."""
+
+    __tablename__ = "pins"
+    __table_args__ = (UniqueConstraint("run_id", "review_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), index=True)
+    review_id: Mapped[str] = mapped_column(String(255))  # the store review id, as used in the analysis
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

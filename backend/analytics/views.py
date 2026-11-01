@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from difflib import SequenceMatcher
 
 import pandas as pd
 
@@ -312,4 +313,160 @@ def risks_view(df: pd.DataFrame) -> dict:
             "themes": [{"theme": t, "mentions": n} for t, n in payment_themes.most_common(5)],
             "quotes": _quotes(payments, 2),
         },
+    }
+
+
+# ---- Accessibility ---------------------------------------------------------------------------
+
+# Accessibility needs, matched by keywords inside reviews the AI flagged as accessibility feedback.
+# Each has what to check in the design, with the matching WCAG success criterion.
+ACCESSIBILITY_AREAS: dict[str, tuple[tuple[str, ...], str]] = {
+    "Text size and zoom": (
+        ("font", "text size", "small text", "tiny text", "zoom", "magnif", "large text", "bigger text", "too small"),
+        "Support the system text size up to 200% without clipped or overlapping text (WCAG 1.4.4).",
+    ),
+    "Contrast and colour": (
+        ("contrast", "colour blind", "color blind", "colorblind", "colour", "color", "dark mode", "too bright"),
+        "Text contrast of at least 4.5:1, and never use colour alone to carry meaning (WCAG 1.4.3, 1.4.1).",
+    ),
+    "Screen readers": (
+        ("talkback", "screen reader", "screenreader", "voiceover", "blind", "visually impaired", "label"),
+        "Every control has a spoken name and role, in a sensible reading order (WCAG 4.1.2, 1.3.2).",
+    ),
+    "Motion and flashing": (
+        ("flash", "flicker", "seizure", "epilep", "motion sick", "animation", "dizzy", "vertigo"),
+        "Nothing flashes more than 3 times a second; respect the system's reduce-motion setting (WCAG 2.3.1).",
+    ),
+    "Touch and dexterity": (
+        ("tap", "button", "tremor", "arthritis", "one hand", "one-hand", "dexterity", "swipe", "gesture"),
+        "Touch targets of at least 24×24 px (48 dp on Android) and a simple alternative to gestures "
+        "(WCAG 2.5.8, 2.5.1).",
+    ),
+    "Hearing and captions": (
+        ("caption", "subtitle", "deaf", "hearing", "hard of hearing", "audio cue", "sound only"),
+        "Captions for speech and a visual alternative to sound cues (WCAG 1.2.2).",
+    ),
+    "Cognitive load": (
+        ("confus", "overwhelm", "dyslex", "adhd", "autis", "memory", "complicated", "too many steps"),
+        "Plain language, predictable navigation and no time pressure without a way to extend it (WCAG 3.2.3, 2.2.1).",
+    ),
+    "Mobility and physical activity": (
+        ("wheelchair", "disab", "mobility", "can't walk", "cannot walk", "walking", "elderly", "senior", "chronic"),
+        "Core features shouldn't require walking, standing or travel; offer an alternative way to take part.",
+    ),
+}
+
+
+def accessibility_view(df: pd.DataFrame) -> dict:
+    """Reviews about accessibility, grouped into needs with what to check in the design."""
+    tagged = df[df["tagged"]]
+    total = len(tagged)
+    a11y = tagged[tagged["accessibility"] == "yes"]
+    text = a11y["content"].fillna("").str.lower()
+    used: set[str] = set()
+    areas = []
+    matched = pd.Series(False, index=a11y.index)
+    for area, (keywords, check) in ACCESSIBILITY_AREAS.items():
+        hit = text.apply(lambda t, kw=keywords: any(k in t for k in kw))
+        matched |= hit
+        g = a11y[hit]
+        if len(g):
+            areas.append(
+                {
+                    "area": area,
+                    "count": len(g),
+                    "negative_share": round(float((g["rating"] <= 2).mean()), 4),
+                    "check": check,
+                    "quotes": _quotes(g, 1, used=used),
+                }
+            )
+    areas.sort(key=lambda a: a["count"], reverse=True)
+    themes = Counter(t for ts in a11y["themes"] for t in ts)
+    return {
+        "available": bool(tagged["accessibility"].notna().any()),
+        "total_tagged": total,
+        "count": len(a11y),
+        "share": round(len(a11y) / total, 4) if total else 0,
+        "avg_rating": round(float(a11y["rating"].mean()), 2) if len(a11y) else None,
+        "overall_avg_rating": round(float(tagged["rating"].mean()), 2) if total else None,
+        "negative_share": round(float((a11y["rating"] <= 2).mean()), 4) if len(a11y) else None,
+        "trend": _trend(a11y, df, _midpoint(df)),
+        "areas": areas,
+        "unmatched": int((~matched).sum()),
+        "themes": [{"theme": t, "mentions": n} for t, n in themes.most_common(6)],
+        "stages": _shares(a11y["journey_stage"], list(JOURNEY_STAGES)),
+        "quotes": _quotes(a11y, 4, used=used),
+    }
+
+
+# ---- Developer replies -----------------------------------------------------------------------
+
+PLAY_REPLY_LIMIT = 350  # characters Google Play allows in a developer reply
+
+
+def _normalize_reply(text: str) -> str:
+    return " ".join("".join(c for c in text.lower() if c.isalpha() or c.isspace()).split())
+
+
+def _reply_templates(replies: list[str], similarity: float = 0.85) -> list[list[str]]:
+    """Group replies that are the same text give or take a few words (typos, names, links)."""
+    groups: list[tuple[str, list[str]]] = []
+    for reply in replies:
+        norm = _normalize_reply(reply)
+        for key, members in groups:
+            if SequenceMatcher(None, key, norm, autojunk=False).ratio() >= similarity:
+                members.append(reply)
+                break
+        else:
+            groups.append((norm, [reply]))
+    return [members for _, members in groups]
+
+
+def replies_view(df: pd.DataFrame) -> dict:
+    """How the team answers reviews: reply rates, templated replies, and which complaints go unanswered."""
+    total = len(df)
+    has_reply = df["reply"].fillna("").str.strip() != ""
+    replied = df[has_reply]
+    negative = df["rating"] <= 2
+    unanswered_neg = df[negative & ~has_reply]
+
+    by_rating = []
+    for star in range(1, 6):
+        g = df[df["rating"] == star]
+        if len(g):
+            by_rating.append(
+                {"rating": star, "reviews": len(g), "reply_rate": round(float(has_reply[g.index].mean()), 4)}
+            )
+
+    groups = _reply_templates(replied["reply"].tolist())
+    templated = sum(len(g) for g in groups if len(g) >= 2)
+    templates = [
+        {"text": " ".join(str(g[0]).split())[:400], "uses": len(g)}
+        for g in sorted(groups, key=len, reverse=True)
+        if len(g) >= 2
+    ][:3]
+
+    themes = Counter(t for ts in unanswered_neg["themes"] for t in ts)
+    votes = Counter()
+    for ts, up in zip(unanswered_neg["themes"], unanswered_neg["thumbs_up"], strict=True):
+        for t in ts:
+            votes[t] += int(up)
+    first = unanswered_neg[unanswered_neg["content"].str.len() >= 20].sort_values("thumbs_up", ascending=False)
+    reply_first = [review_dict(r, max_chars=400) for r in first.head(5).to_dict(orient="records")]
+    examples = replied[replied["rating"] <= 3].sort_values("thumbs_up", ascending=False)
+    return {
+        "total": total,
+        "replied": len(replied),
+        "reply_rate": round(len(replied) / total, 4) if total else 0,
+        "negative": int(negative.sum()),
+        "negative_reply_rate": round(float(has_reply[negative].mean()), 4) if negative.any() else None,
+        "avg_rating_replied": round(float(replied["rating"].mean()), 2) if len(replied) else None,
+        "avg_rating_not_replied": round(float(df[~has_reply]["rating"].mean()), 2) if (~has_reply).any() else None,
+        "by_rating": by_rating,
+        "templated_share": round(templated / len(replied), 4) if len(replied) else None,
+        "templates": templates,
+        "avg_reply_chars": int(replied["reply"].str.len().mean()) if len(replied) else None,
+        "unanswered_themes": [{"theme": t, "reviews": n, "helpful_votes": votes[t]} for t, n in themes.most_common(8)],
+        "reply_first": reply_first,
+        "examples": [review_dict(r, max_chars=400) for r in examples.head(3).to_dict(orient="records")],
     }

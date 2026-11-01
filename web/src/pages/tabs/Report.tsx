@@ -1,11 +1,14 @@
 import { Download, Printer } from "lucide-react";
 import { artifactsApi, type Run } from "../../lib/api";
 import { Badge, Button } from "../../components/ui";
+import { usePins } from "../../components/pins";
 import { ArtifactFrame, Evidence } from "./ArtifactFrame";
+import { Quote } from "./Problems";
 
 const WHEN = { now: "Now", next: "Next", later: "Later" } as const;
 
 export function ReportTab({ run }: { run: Run }) {
+  const pins = usePins();
   return (
     <ArtifactFrame
       run={run}
@@ -95,6 +98,21 @@ export function ReportTab({ run }: { run: Run }) {
                 <section>
                   <h2 className="mb-2 font-semibold">Open questions for further research</h2>
                   <ul className="list-disc space-y-1 pl-5">{r.open_questions.map((q) => <li key={q}>{q}</li>)}</ul>
+                </section>
+              )}
+
+              {pins && pins.pins.length > 0 && (
+                <section>
+                  <h2 className="mb-1 font-semibold">Pinned evidence</h2>
+                  <p className="mb-3 text-sm text-muted">Quotes your team pinned while exploring this analysis.</p>
+                  <div className="flex flex-col gap-4">
+                    {pins.pins.map((p) => (
+                      <div key={p.review_id} className="flex flex-col gap-1.5">
+                        <Quote review={p} />
+                        {p.note && <p className="ml-4 text-sm text-muted">Note: {p.note}</p>}
+                      </div>
+                    ))}
+                  </div>
                 </section>
               )}
             </article>

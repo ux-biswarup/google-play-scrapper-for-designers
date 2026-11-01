@@ -485,6 +485,55 @@ export const viewsApi = {
   emotions: (id: string) => request<EmotionsView>(`/runs/${id}/views/emotions`),
   segments: (id: string, by: string) => request<SegmentsView>(`/runs/${id}/views/segments${query({ by })}`),
   risks: (id: string) => request<RisksView>(`/runs/${id}/views/risks`),
+  accessibility: (id: string) => request<AccessibilityView>(`/runs/${id}/views/accessibility`),
+  replies: (id: string) => request<RepliesView>(`/runs/${id}/views/replies`),
+  draftReply: (id: string, reviewId: string, llm: LLMConfig) =>
+    request<{ review_id: string; reply: string; limit: number }>(`/runs/${id}/views/replies/draft`, post({ review_id: reviewId, llm })),
+};
+
+export type AccessibilityView = {
+  available: boolean;
+  total_tagged: number;
+  count: number;
+  share: number;
+  avg_rating: number | null;
+  overall_avg_rating: number | null;
+  negative_share: number | null;
+  trend: string;
+  areas: { area: string; count: number; negative_share: number; check: string; quotes: Review[] }[];
+  unmatched: number;
+  themes: { theme: string; mentions: number }[];
+  stages: { value: string; count: number; share: number }[];
+  quotes: Review[];
+};
+
+export type RepliesView = {
+  total: number;
+  replied: number;
+  reply_rate: number;
+  negative: number;
+  negative_reply_rate: number | null;
+  avg_rating_replied: number | null;
+  avg_rating_not_replied: number | null;
+  by_rating: { rating: number; reviews: number; reply_rate: number }[];
+  templated_share: number | null;
+  templates: { text: string; uses: number }[];
+  avg_reply_chars: number | null;
+  unanswered_themes: { theme: string; reviews: number; helpful_votes: number }[];
+  reply_first: Review[];
+  examples: Review[];
+};
+
+// ---- Pinboard ----------------------------------------------------------------------------------
+
+export type Pin = Review & { note: string; pinned_at: string };
+
+export const pinsApi = {
+  list: (runId: string) => request<Pin[]>(`/runs/${runId}/pins`),
+  pin: (runId: string, reviewId: string, note = "") =>
+    request<Pin[]>(`/runs/${runId}/pins/${encodeURIComponent(reviewId)}`, { method: "PUT", body: JSON.stringify({ note }) }),
+  unpin: (runId: string, reviewId: string) =>
+    request<void>(`/runs/${runId}/pins/${encodeURIComponent(reviewId)}`, { method: "DELETE" }),
 };
 
 // ---- Saved API keys (encrypted on this computer; never returned) -------------------------------

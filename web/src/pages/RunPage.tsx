@@ -20,6 +20,10 @@ import { RisksTab } from "./tabs/Risks";
 import { DecisionsTab } from "./tabs/Decisions";
 import { ReportTab } from "./tabs/Report";
 import { PersonasTab } from "./tabs/Personas";
+import { AccessibilityTab } from "./tabs/Accessibility";
+import { RepliesTab } from "./tabs/Replies";
+import { PinboardTab } from "./tabs/Pinboard";
+import { PinProvider } from "../components/pins";
 
 const isActive = (run: Run) => run.status === "queued" || run.status === "running";
 
@@ -128,6 +132,7 @@ const VIEW_GROUPS = [
     views: [
       { id: "decisions", label: "Decisions" },
       { id: "report", label: "Research report" },
+      { id: "pinboard", label: "Pinned quotes" },
     ],
   },
   {
@@ -140,6 +145,8 @@ const VIEW_GROUPS = [
       { id: "emotions", label: "Emotions" },
       { id: "segments", label: "Segments" },
       { id: "risks", label: "Risks" },
+      { id: "accessibility", label: "Accessibility" },
+      { id: "replies", label: "Developer replies" },
       { id: "personas", label: "Personas" },
     ],
   },
@@ -216,6 +223,7 @@ function Dashboard({ run }: { run: Run }) {
   };
 
   return (
+    <PinProvider runId={run.id}>
     <div className="flex h-full min-h-0">
     <div className="min-w-0 flex-1 overflow-y-auto">
     <div className="mx-auto max-w-7xl px-6 py-8">
@@ -293,6 +301,9 @@ function Dashboard({ run }: { run: Run }) {
           {tab === "emotions" && <EmotionsTab run={run} />}
           {tab === "segments" && <SegmentsTab run={run} />}
           {tab === "risks" && <RisksTab run={run} />}
+          {tab === "accessibility" && <AccessibilityTab run={run} />}
+          {tab === "replies" && <RepliesTab run={run} />}
+          {tab === "pinboard" && <PinboardTab run={run} />}
           {tab === "decisions" && <DecisionsTab run={run} />}
           {tab === "report" && <ReportTab run={run} />}
           {tab === "personas" && <PersonasTab run={run} />}
@@ -308,6 +319,7 @@ function Dashboard({ run }: { run: Run }) {
       </div>
     )}
     </div>
+    </PinProvider>
   );
 }
 

@@ -17,6 +17,7 @@ from ..db import utcnow
 from ..models import Artifact, Run, RunStatus
 from ..providers import resolve_config
 from ..schemas import LLMConfigIn
+from .pins import pinned_reviews
 
 router = APIRouter(prefix="/runs/{run_id}/artifacts", tags=["artifacts"])
 
@@ -114,7 +115,7 @@ def report_markdown(run_id: str, ctx: AppContext = Depends(get_ctx)) -> Response
         raise HTTPException(404, "Generate the report first.")
     name = re.sub(r"[^A-Za-z0-9._-]+", "-", f"{run.app.store_id}-ux-research-report.md")
     return Response(
-        artifacts.to_markdown(found.content, run),
+        artifacts.to_markdown(found.content, run, pins=pinned_reviews(ctx, run_id)),
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{name}"'},
     )

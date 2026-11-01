@@ -7,6 +7,7 @@ import { api, type Review, type Run, type Theme } from "../../lib/api";
 import { label, num, pct, plural, rating, shortDate } from "../../lib/format";
 import { Badge, EmptyState, Notice, Panel, Spinner, Stars, cx } from "../../components/ui";
 import { Plot, useChartColors } from "../../components/Plot";
+import { PinButton } from "../../components/pins";
 
 export function Quote({ review, clamp = false }: { review: Review; clamp?: boolean }) {
   return (
@@ -19,6 +20,7 @@ export function Quote({ review, clamp = false }: { review: Review; clamp?: boole
         <span>{shortDate(review.date)}</span>
         {review.app_version !== "unknown" && <span>Version {review.app_version}</span>}
         {review.thumbs_up > 0 && <span>{num(review.thumbs_up)} found this helpful</span>}
+        <PinButton reviewId={review.review_id} />
       </figcaption>
     </figure>
   );

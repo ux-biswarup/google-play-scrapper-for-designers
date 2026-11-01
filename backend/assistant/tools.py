@@ -306,6 +306,29 @@ def get_risks(ctx: ToolContext, run_id: str) -> dict:
 
 
 @tool
+def get_accessibility(ctx: ToolContext, run_id: str) -> dict:
+    """Accessibility feedback: how many reviews raise it, grouped into needs (text size, contrast, screen readers,
+    motion, touch, hearing, cognitive load, mobility) with what to check in the design (WCAG) and quotes."""
+    data = views.accessibility_view(_frame(ctx, run_id))
+    for area in data["areas"]:
+        area["quotes"] = [_review(q, QUOTE_CHARS) for q in area["quotes"]]
+    data["quotes"] = [_review(q, QUOTE_CHARS) for q in data["quotes"]]
+    return data
+
+
+@tool
+def get_developer_replies(ctx: ToolContext, run_id: str) -> dict:
+    """How the team replies to reviews: reply rate overall and on 1-2 star reviews, rating of replied vs not,
+    copy-paste (templated) replies, unanswered complaint themes and the most-seen unanswered reviews."""
+    data = views.replies_view(_frame(ctx, run_id))
+    data["reply_first"] = [_review(q, QUOTE_CHARS) for q in data["reply_first"]]
+    data["examples"] = [
+        {**_review(q, QUOTE_CHARS), "reply": _trim(q["reply"] or "", QUOTE_CHARS)} for q in data["examples"]
+    ]
+    return data
+
+
+@tool
 def compare_analyses(ctx: ToolContext, run_ids: list[str]) -> dict:
     """Compare 2-4 analyses side by side (your app vs competitors, markets or periods): rating, negative share,
     churn, feedback types, emotions, journey-stage negativity and top problems. Get run_ids from list_analyses."""

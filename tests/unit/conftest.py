@@ -86,7 +86,8 @@ class FakeStore:
                     reviewed_at=start + timedelta(hours=i * 24 * self.days / (count * 2)),
                     app_version="2.0" if i >= count * 3 // 2 else "1.0",
                     thumbs_up=i % 7,
-                    reply_content=None,
+                    # The team answers crash reports (2 stars) with the same template.
+                    reply_content="Sorry about that! Please update to the latest version." if rating == 2 else None,
                 )
             )
         if ratings:
@@ -251,6 +252,9 @@ class FakeProvider(LLMProvider):
         if artifact is not None:
             self.calls["artifact"] = self.calls.get("artifact", 0) + 1
             return artifact, Usage(50, 40)
+        if "reply" in props:  # reply drafts: too long, so the endpoint has to shorten it
+            self.calls["reply"] = self.calls.get("reply", 0) + 1
+            return {"reply": "Thanks for telling us about the crash. " * 12}, Usage(30, 20)
         if "results" in props:
             self.calls["tag"] = self.calls.get("tag", 0) + 1
             items = json.loads(prompt.split("REVIEWS:\n", 1)[1])

@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
 import { api, type Review, type ReviewQuery, type Run } from "../../lib/api";
 import { label, num, shortDate } from "../../lib/format";
+import { PinButton } from "../../components/pins";
 import { Badge, Button, EmptyState, Input, Notice, Select, Spinner, Stars, cx } from "../../components/ui";
 
 const PAGE_SIZE = 20;
@@ -17,6 +18,7 @@ function ReviewItem({ review }: { review: Review }) {
         <span>{shortDate(review.date)}</span>
         {review.app_version !== "unknown" && <span>Version {review.app_version}</span>}
         {review.thumbs_up > 0 && <span>{num(review.thumbs_up)} found this helpful</span>}
+        <PinButton reviewId={review.review_id} />
       </div>
       <p className="max-w-[72ch] font-quote text-[1.05rem] leading-relaxed">{review.content || <span className="text-muted">No text, rating only.</span>}</p>
       <div className="flex flex-wrap gap-1.5">
