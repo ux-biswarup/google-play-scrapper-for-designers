@@ -181,14 +181,14 @@ def provider_failure() -> dict:
 
 
 @pytest.fixture
-def client(llm_calls, provider_failure):
+def client(llm_calls, provider_failure, tmp_path):
     def factory(config: LLMConfig) -> LLMProvider:
         if config.provider not in ("anthropic", "openai", "ollama"):
             raise LLMError(f"Unknown provider '{config.provider}'.", fatal=True)
         return FakeProvider(llm_calls, provider_failure.get("error"))
 
     app = create_app(
-        Settings(database_url="sqlite://", batch_size=10, llm_concurrency=3),
+        Settings(database_url="sqlite://", data_dir=tmp_path, batch_size=10, llm_concurrency=3),
         store=FakeStore(),
         provider_factory=factory,
     )

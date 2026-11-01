@@ -162,7 +162,8 @@ def test_serves_built_frontend(tmp_path):
     (tmp_path / "index.html").write_text("<div id=root></div>")
     (tmp_path / "assets" / "app.js").write_text("console.log(1)")
     (tmp_path.parent / "secret.txt").write_text("nope")
-    with TestClient(create_app(Settings(database_url="sqlite://", web_dist=tmp_path))) as client:
+    settings = Settings(database_url="sqlite://", web_dist=tmp_path, data_dir=tmp_path / "data")
+    with TestClient(create_app(settings)) as client:
         assert client.get("/runs/abc").text == "<div id=root></div>"  # client-side route
         assert client.get("/assets/app.js").text == "console.log(1)"
         assert "nope" not in client.get("/../secret.txt").text

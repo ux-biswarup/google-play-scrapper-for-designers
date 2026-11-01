@@ -30,6 +30,9 @@ What it returns for each analysis:
 - **Review explorer:** filter by rating, theme, type, version, date or text
 - **Metrics API:** one set of definitions shared by the dashboard and the upcoming chat assistant
 - **Chart images** (PNG/SVG, rendered with matplotlib) for reports
+- **Research assistant:** ask questions in the app; answers use the analysis tools and cite the exact reviews
+- **MCP server:** use your analyses from Claude Desktop, Claude Code, Cursor, VS Code, Codex or ChatGPT (`python -m backend.mcp_server`, or `http://127.0.0.1:8000/mcp/`); setup snippets are on the app's "Use in Claude, ChatGPT…" page
+- **Sign in instead of pasting keys:** "Continue with ChatGPT" (Plus/Pro plan usage, preview) or "Connect OpenRouter"
 
 API keys are optional in `.env` as a fallback (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`). Keys pasted in the app are kept in memory only and never stored.
 

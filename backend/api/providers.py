@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from ..context import AppContext, get_ctx
 from ..providers import PROVIDERS, LLMError, resolve_config
 from ..schemas import LLMConfigIn, TestConnectionIn
+from ..services.chatgpt_auth import get_auth
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -15,7 +16,11 @@ _PING_SCHEMA = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "re
 
 @router.get("")
 def list_providers() -> list[dict]:
-    return [spec.to_dict() for spec in PROVIDERS.values()]
+    providers = [spec.to_dict() for spec in PROVIDERS.values()]
+    for p in providers:
+        # "connected": a provider usable without a key; for ChatGPT it means signed in with plan usage.
+        p["connected"] = get_auth().status()["plan_usage"] if p["id"] == "chatgpt" else None
+    return providers
 
 
 @router.post("/models")

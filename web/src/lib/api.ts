@@ -11,6 +11,8 @@ export type Provider = {
   env_var: string | null;
   has_env_key: boolean;
   default_model: string | null;
+  /** ChatGPT plan only: signed in with plan usage granted. */
+  connected: boolean | null;
 };
 
 export type LLMConfig = { provider: string; model?: string; api_key?: string; base_url?: string };
@@ -358,3 +360,15 @@ export type McpInfo = {
 };
 
 export const connectApi = { mcp: () => request<McpInfo>("/connect/mcp") };
+
+// ---- Sign-in options --------------------------------------------------------------------------
+
+export type ChatGPTStatus = { signed_in: boolean; email: string | null; plan_usage: boolean };
+
+export const authApi = {
+  chatgptStatus: () => request<ChatGPTStatus>("/auth/chatgpt"),
+  chatgptStart: (returnTo: string) => request<{ url: string }>("/auth/chatgpt/start", post({ return_to: returnTo })),
+  chatgptSignOut: () => request<{ revoked: boolean }>("/auth/chatgpt/signout", { method: "POST" }),
+  openrouterExchange: (code: string, codeVerifier: string) =>
+    request<{ key: string }>("/auth/openrouter/exchange", post({ code, code_verifier: codeVerifier })),
+};

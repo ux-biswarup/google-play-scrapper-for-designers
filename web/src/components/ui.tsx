@@ -4,7 +4,7 @@ import { AlertCircle, ChevronDown, Info, Loader2, Star } from "lucide-react";
 const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(" ");
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "brand";
   size?: "sm" | "md";
   busy?: boolean;
 };
@@ -21,6 +21,8 @@ export function Button({ variant = "secondary", size = "md", busy, className, ch
         variant === "secondary" && "border border-line bg-panel text-ink hover:bg-soft",
         variant === "ghost" && "text-muted hover:bg-soft hover:text-ink",
         variant === "danger" && "border border-line bg-panel text-neg hover:bg-soft",
+        // Third-party sign-in buttons (black per the provider's guidelines; inverted in dark mode).
+        variant === "brand" && "bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/85",
         className,
       )}
     >

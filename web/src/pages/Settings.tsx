@@ -1,10 +1,11 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { api, type Provider } from "../lib/api";
 import { toLLMConfig, useConnection, type AIConnection } from "../lib/settings";
 import { Button, Field, Input, Notice, Select, cx } from "../components/ui";
+import { QuickConnect } from "../components/QuickConnect";
 
 const PROVIDER_NOTES: Record<string, string> = {
   anthropic: "Claude models. Uses an Anthropic API key.",
@@ -65,6 +66,23 @@ export function SettingsPage() {
   };
 
   const keyOptional = provider?.has_env_key || provider?.requires_key === false;
+  const queryClient = useQueryClient();
+
+  const chooseChatGPT = (model: string) => {
+    const next: AIConnection = { provider: "chatgpt", model, apiKey: "", baseUrl: "", remember: true };
+    save(next);
+    setDraft(next);
+    queryClient.invalidateQueries({ queryKey: ["providers"] });
+  };
+  const saveOpenRouterKey = useCallback(
+    (key: string, remember: boolean) => {
+      const next: AIConnection = { provider: "openrouter", model: "", apiKey: key, baseUrl: "", remember };
+      save(next); // keep the key even before a model is chosen
+      setDraft(next);
+      setSaved(false);
+    },
+    [save],
+  );
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
@@ -74,8 +92,12 @@ export function SettingsPage() {
         saved in its database.
       </p>
 
+      <div className="mt-8">
+        <QuickConnect remember={draft.remember} onUseChatGPT={chooseChatGPT} onOpenRouterKey={saveOpenRouterKey} />
+      </div>
+
       <form
-        className="mt-8 flex flex-col gap-8"
+        className="mt-10 flex flex-col gap-8 border-t border-line pt-8"
         onSubmit={(e) => {
           e.preventDefault();
           save(draft);
@@ -83,15 +105,20 @@ export function SettingsPage() {
         }}
       >
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium">Provider</legend>
+          <legend className="mb-2 text-sm font-medium">Or use an API key</legend>
           <div className="grid gap-2 sm:grid-cols-2">
-            {providers.map((p) => (
+            {providers.filter((p) => p.id !== "chatgpt").map((p) => (
               <ProviderOption key={p.id} provider={p} checked={p.id === draft.provider} onSelect={() => chooseProvider(p.id)} />
             ))}
           </div>
         </fieldset>
 
-        {provider && (
+        {provider?.id === "chatgpt" && (
+          <p className="text-sm text-muted">
+            You're using your ChatGPT plan ({draft.model}). Pick a provider above to switch to an API key.
+          </p>
+        )}
+        {provider && provider.id !== "chatgpt" && (
           <div className="flex flex-col gap-5">
             {provider.requires_key !== false && provider.id !== "ollama" && (
               <Field

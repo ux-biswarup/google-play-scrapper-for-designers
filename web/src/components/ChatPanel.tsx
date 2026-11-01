@@ -197,7 +197,18 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold">Ask about {run.app.title ?? "this app"}</h2>
           <p className="truncate text-xs text-muted">
-            {ready ? `${provider?.name} ${modelLabel}. Answers cite the reviews they use.` : "No AI model connected"}
+            {!ready ? (
+              "No AI model connected"
+            ) : provider?.id === "chatgpt" ? (
+              <>
+                Using ChatGPT plan.{" "}
+                <a href="https://chatgpt.com/#settings" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                  Manage usage
+                </a>
+              </>
+            ) : (
+              `${provider?.name} ${modelLabel}. Answers cite the reviews they use.`
+            )}
           </p>
         </div>
         {turns.length > 0 && (

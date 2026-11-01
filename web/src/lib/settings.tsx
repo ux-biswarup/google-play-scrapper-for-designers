@@ -74,7 +74,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const provider = providers.find((p) => p.id === effective?.provider);
   const model = effective?.model || provider?.default_model || "";
   const hasKey = !!effective?.apiKey || !!provider?.has_env_key || provider?.requires_key === false;
-  const ready = !!provider && !!model && hasKey && (!provider.requires_base_url || !!effective?.baseUrl);
+  const signedIn = provider?.id !== "chatgpt" || provider.connected === true;
+  const ready =
+    !!provider && !!model && hasKey && signedIn && (!provider.requires_base_url || !!effective?.baseUrl);
 
   const save = useCallback((next: AIConnection) => {
     storeConnection(next);

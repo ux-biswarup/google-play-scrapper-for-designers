@@ -5,6 +5,7 @@ pydantic>=2.7
 sqlalchemy>=2.0
 python-dotenv>=1.0
 certifi
+pyjwt[crypto]>=2.9
 
 # Data & charts
 pandas>=2.2

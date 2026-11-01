@@ -25,7 +25,7 @@ from .base import (
 class ProviderSpec:
     id: str
     name: str
-    kind: str  # "anthropic" or "openai" (OpenAI-compatible API)
+    kind: str  # "anthropic", "openai" (OpenAI-compatible API) or "chatgpt" (ChatGPT plan sign-in)
     base_url: str | None
     requires_key: bool
     key_url: str | None = None
@@ -94,6 +94,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
             "https://console.mistral.ai/api-keys",
             env_var="MISTRAL_API_KEY",
         ),
+        ProviderSpec("chatgpt", "ChatGPT plan", "chatgpt", None, False, "https://chatgpt.com/#settings"),
         ProviderSpec("ollama", "Ollama (local)", "openai", "http://localhost:11434/v1", False),
         ProviderSpec("custom", "Custom (OpenAI-compatible)", "openai", None, False, requires_base_url=True),
     )
@@ -126,6 +127,11 @@ def create_provider(config: LLMConfig) -> LLMProvider:
         from .anthropic_provider import AnthropicProvider
 
         return AnthropicProvider(config)
+    if spec.kind == "chatgpt":
+        from ..services.chatgpt_auth import get_auth
+        from .chatgpt_provider import ChatGPTProvider
+
+        return ChatGPTProvider(config, get_auth())
     from .openai_provider import OpenAICompatibleProvider
 
     return OpenAICompatibleProvider(config, label=spec.name, base_url=base_url)
