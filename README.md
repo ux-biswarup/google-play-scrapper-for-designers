@@ -8,9 +8,31 @@ This tool helps analyze Google Play Store app reviews to support better design d
 
 ## AI Model Support
 
-Currently, this tool supports **Anthropic's Claude AI** for sentiment analysis and review insights. Future updates will include:
-- **OpenAI** integration for GPT-based analysis
-- **Local model support** using Ollama for privacy-focused analysis
+Bring your own model. The new backend supports **Anthropic (Claude)**, **OpenAI**, **Google Gemini**, **OpenRouter**, **Groq**, **Mistral**, **Ollama** (local) and any **OpenAI-compatible** server. You pick the provider and model and paste your key in the app; nothing has to go in `.env`.
+
+## New Backend API (in development)
+
+A FastAPI backend is replacing the Streamlit app. It analyzes reviews in parallel batches (about a minute for 1,000 reviews instead of 30+), stores results in a local SQLite database (`data/app.db`), and reports live progress.
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn backend.main:app --reload --port 8000
+```
+
+Interactive API docs: `http://localhost:8000/docs`. Import analyses from the old version with `python -m backend.cli import-legacy`.
+
+What it returns for each analysis:
+- **Problem board:** themes ranked by impact (reach × negativity × momentum) with real review quotes
+- **Feedback type, journey stage and emotion** for every review
+- **Trends:** rating and sentiment over time, 1★ spike detection, before/after a release, trending themes
+- **Review explorer:** filter by rating, theme, type, version, date or text
+- **Metrics API:** one set of definitions shared by the dashboard and the upcoming chat assistant
+- **Chart images** (PNG/SVG, rendered with matplotlib) for reports
+
+API keys are optional in `.env` as a fallback (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `MISTRAL_API_KEY`). Keys pasted in the app are kept in memory only and never stored.
+
+Run the tests with `pytest` (offline, no keys needed).
 
 ## Installation
 

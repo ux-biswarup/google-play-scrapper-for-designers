@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import JSON, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .db import Base, utcnow
+
+
+class RunStatus:
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TERMINAL = frozenset({COMPLETED, FAILED, CANCELLED})
+
+
+class App(Base):
+    __tablename__ = "apps"
+    __table_args__ = (UniqueConstraint("platform", "store_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[str] = mapped_column(String(16))
+    store_id: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str | None] = mapped_column(String(255))
+    developer: Mapped[str | None] = mapped_column(String(255))
+    icon_url: Mapped[str | None] = mapped_column(Text)
+    genre: Mapped[str | None] = mapped_column(String(128))
+    score: Mapped[float | None]
+    ratings_count: Mapped[int | None]
+    installs: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[str | None] = mapped_column(String(64))
+    store_url: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+    __table_args__ = (UniqueConstraint("app_id", "store_review_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    app_id: Mapped[int] = mapped_column(ForeignKey("apps.id", ondelete="CASCADE"), index=True)
+    store_review_id: Mapped[str] = mapped_column(String(255))
+    rating: Mapped[int]
+    content: Mapped[str] = mapped_column(Text, default="")
+    reviewed_at: Mapped[datetime | None]
+    app_version: Mapped[str | None] = mapped_column(String(64))
+    thumbs_up: Mapped[int] = mapped_column(default=0)
+    reply_content: Mapped[str | None] = mapped_column(Text)
+    country: Mapped[str | None] = mapped_column(String(8))
+    lang: Mapped[str | None] = mapped_column(String(16))
+
+
+class Run(Base):
+    """One analysis request: an app + market + filters + model."""
+
+    __tablename__ = "runs"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    app_id: Mapped[int] = mapped_column(ForeignKey("apps.id", ondelete="CASCADE"), index=True)
+    country: Mapped[str | None] = mapped_column(String(8))
+    lang: Mapped[str | None] = mapped_column(String(16))
+    ratings: Mapped[list[int] | None] = mapped_column(JSON)
+    requested_count: Mapped[int]
+    output_language: Mapped[str] = mapped_column(String(32), default="English")
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(128))
+
+    status: Mapped[str] = mapped_column(String(16), default=RunStatus.QUEUED)
+    stage: Mapped[str | None] = mapped_column(String(32))
+    progress_done: Mapped[int] = mapped_column(default=0)
+    progress_total: Mapped[int] = mapped_column(default=0)
+    message: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)
+
+    review_count: Mapped[int] = mapped_column(default=0)
+    tagged_count: Mapped[int] = mapped_column(default=0)
+    failed_count: Mapped[int] = mapped_column(default=0)
+    input_tokens: Mapped[int] = mapped_column(default=0)
+    output_tokens: Mapped[int] = mapped_column(default=0)
+    # Raw theme label -> canonical theme, produced by the grouping pass.
+    theme_map: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    started_at: Mapped[datetime | None]
+    finished_at: Mapped[datetime | None]
+
+    app: Mapped[App] = relationship(lazy="joined")
+
+    @property
+    def model_key(self) -> str:
+        return f"{self.provider}:{self.model}"
+
+
+class RunReview(Base):
+    __tablename__ = "run_reviews"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True)
+    review_id: Mapped[int] = mapped_column(ForeignKey("reviews.id", ondelete="CASCADE"), primary_key=True)
+
+
+class Insight(Base):
+    """AI tags for one review, cached per model so re-runs don't pay twice."""
+
+    __tablename__ = "insights"
+    __table_args__ = (
+        UniqueConstraint("review_id", "model_key"),
+        Index("ix_insights_model_key", "model_key"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    review_id: Mapped[int] = mapped_column(ForeignKey("reviews.id", ondelete="CASCADE"))
+    model_key: Mapped[str] = mapped_column(String(160))
+    category: Mapped[str | None] = mapped_column(String(32))
+    themes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    journey_stage: Mapped[str | None] = mapped_column(String(32))
+    emotion: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

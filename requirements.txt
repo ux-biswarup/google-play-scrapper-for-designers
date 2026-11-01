@@ -1,8 +1,23 @@
-pandas>=1.5.0
-matplotlib>=3.5.0
-seaborn>=0.12.0
+# Backend API
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+sqlalchemy>=2.0
+python-dotenv>=1.0
+certifi
+
+# Data & charts
+pandas>=2.2
+matplotlib>=3.11
+plotly>=7.1
+
+# Store data
 google-play-scraper==1.2.7
-anthropic>=0.8.0
-python-dotenv>=1.0.0
-streamlit>=1.32.0
-plotly>=5.19.0 
+
+# AI providers (Anthropic SDK for Claude; OpenAI SDK for OpenAI and every OpenAI-compatible API)
+anthropic>=0.50
+openai>=1.60
+
+# Legacy Streamlit UI (removed once the new frontend replaces it)
+streamlit>=1.32
+seaborn>=0.13
