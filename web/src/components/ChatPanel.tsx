@@ -10,7 +10,6 @@ import {
   Copy,
   History,
   Loader2,
-  MessageSquareText,
   Pencil,
   RotateCcw,
   Search,
@@ -197,6 +196,15 @@ function applyEvent(turn: AssistantTurn, event: ChatEvent): AssistantTurn {
       return turn;
   }
 }
+
+/** Suggestion tags about risks read warm, strengths read positive; the rest stay neutral. */
+const TAG_TONE: Record<string, string> = {
+  "Top problem": "bg-neg/10 text-neg",
+  Rising: "bg-neg/10 text-neg",
+  "Churn risk": "bg-neg/10 text-neg",
+  Money: "bg-warn/10 text-warn",
+  Strength: "bg-pos/10 text-pos",
+};
 
 // ---- tabs ----------------------------------------------------------------------------------------
 
@@ -788,21 +796,23 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                   <div>
                     <h4 className="mb-1.5 px-1 text-xs font-medium text-muted">Try asking</h4>
                     <ul className="flex flex-col gap-1">
-                      {list.data!.suggestions.map((s, i) => (
-                        <li key={s}>
+                      {list.data!.suggestions.map((s) => (
+                        <li key={s.text}>
                           <button
-                            onClick={() => send(s)}
+                            onClick={() => send(s.text)}
                             disabled={!ready || isBusy}
-                            className="group flex w-full items-start gap-2.5 rounded-lg border border-line bg-panel px-3 py-2 text-left text-sm transition-colors hover:border-muted/60 hover:bg-soft disabled:opacity-50"
+                            className="group flex w-full items-start gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-left text-sm transition-colors hover:border-muted/60 hover:bg-soft disabled:opacity-50"
                           >
-                            <MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
                             <span className="min-w-0 flex-1">
-                              {s}
-                              {i === 0 && s.startsWith("Why are users unhappy") && (
-                                <span className="ml-1.5 inline-block rounded-full bg-soft px-1.5 align-[1px] text-[10px] font-medium text-muted group-hover:bg-panel">
-                                  Top problem
-                                </span>
-                              )}
+                              {s.text}
+                              <span
+                                className={cx(
+                                  "ml-1.5 inline-block rounded-full px-1.5 align-[1px] text-[10px] font-medium whitespace-nowrap",
+                                  TAG_TONE[s.tag] ?? "bg-soft text-muted group-hover:bg-panel",
+                                )}
+                              >
+                                {s.tag}
+                              </span>
                             </span>
                             <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
                           </button>

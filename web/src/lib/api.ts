@@ -335,12 +335,15 @@ export type ChatEvent =
   | { type: "error"; message: string }
   | { type: "done"; usage: { input_tokens: number; output_tokens: number } };
 
+/** A starter question written from this analysis, with a short tag saying why (e.g. "Top problem"). */
+export type ChatSuggestion = { text: string; tag: string };
+
 /** One conversation about one analysis. Chats never share context with each other or other analyses. */
 export type ChatSession = { id: string; title: string; questions: number; created_at: string; updated_at: string };
 
 export const chatApi = {
   sessions: (runId: string, q?: string) =>
-    request<{ sessions: (ChatSession & { snippet?: string | null })[]; suggestions: string[] }>(
+    request<{ sessions: (ChatSession & { snippet?: string | null })[]; suggestions: ChatSuggestion[] }>(
       `/runs/${runId}/chat/sessions${query({ q })}`,
     ),
   create: (runId: string) => request<ChatSession>(`/runs/${runId}/chat/sessions`, { method: "POST" }),

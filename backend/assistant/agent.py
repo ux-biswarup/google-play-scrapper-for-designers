@@ -31,14 +31,6 @@ How to work:
   stakeholder summaries) ground every point in the evidence and cite it.
 Reply in {language}."""
 
-SUGGESTIONS = [
-    "What are the three biggest problems, and how bad is each?",
-    "What do users love that we should protect?",
-    "Write How Might We questions for the top problem.",
-    "Draft a short stakeholder update from this analysis.",
-    "Did the latest app version make things better or worse?",
-]
-
 
 def chat_tools() -> list[ToolSpec]:
     """Tools for the in-app chat: bound to the current analysis, so run_id is filled in automatically."""

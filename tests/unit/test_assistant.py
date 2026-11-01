@@ -87,7 +87,7 @@ def test_chats_never_share_context(client, llm_calls):
 
     listed = client.get(f"/api/runs/{first_run}/chat/sessions").json()
     assert [c["id"] for c in listed["sessions"]] == [second, first]  # most recent first
-    assert listed["suggestions"][0] == "Why are users unhappy about login problems?"
+    assert listed["suggestions"][0] == {"text": "Why are users unhappy about login problems?", "tag": "Top problem"}
 
 
 def test_search_chat_history(client):
@@ -243,3 +243,16 @@ def test_reviews_are_recovered_from_results_cut_by_older_versions():
     whole = json.dumps({"quotes": [{"review_id": "a", "text": "one"}, {"review_id": "b", "text": "two"}]})
     assert set(_reviews_in(whole[:-20])) == {"a"}  # "b" was cut off, "a" is complete
     assert set(_reviews_in(whole)) == {"a", "b"}
+
+
+def test_suggestions_come_from_the_analysis(client):
+    from backend.assistant.suggestions import MAX_SUGGESTIONS, suggest
+
+    run_id = _finished_run(client)
+    found = client.get(f"/api/runs/{run_id}/chat/sessions").json()["suggestions"]
+    assert 1 <= len(found) <= MAX_SUGGESTIONS
+    assert all(set(s) == {"text", "tag"} and s["text"] and s["tag"] for s in found)
+    assert len({s["text"] for s in found}) == len(found)  # no repeats
+    tags = [s["tag"] for s in found]
+    assert tags[0] == "Top problem" and "Churn risk" in tags  # the fake reviews say "so annoying"
+    assert [s["tag"] for s in suggest(None)] == ["Strength", "Ideation", "Summary"]  # nothing analyzed yet

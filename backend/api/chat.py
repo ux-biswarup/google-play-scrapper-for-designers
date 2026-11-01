@@ -14,8 +14,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 
 from ..analytics.frame import load_run_frame
-from ..analytics.insights import problem_board
-from ..assistant.agent import CITATION, SUGGESTIONS, SYSTEM, collect_reviews, run_agent, step_label
+from ..assistant.agent import CITATION, SYSTEM, collect_reviews, run_agent, step_label
+from ..assistant.suggestions import suggest
 from ..assistant.tools import ToolContext
 from ..context import AppContext, get_ctx
 from ..db import utcnow
@@ -148,12 +148,9 @@ def _session_out(chat: ChatSession, questions: int = 0) -> dict:
     }
 
 
-def _suggestions(ctx: AppContext, run_id: str) -> list[str]:
-    """Starter questions; the first names this analysis's biggest problem."""
-    df = load_run_frame(ctx.db, run_id, ctx.frames)
-    top = problem_board(df, limit=1, quotes=0)["problems"] if df is not None and df["tagged"].any() else []
-    first = [f"Why are users unhappy about {top[0]['theme']}?"] if top else []
-    return first + SUGGESTIONS[:4]
+def _suggestions(ctx: AppContext, run_id: str) -> list[dict]:
+    """Starter questions written from what this analysis found, each with a short tag."""
+    return suggest(load_run_frame(ctx.db, run_id, ctx.frames))
 
 
 def _system_prompt(ctx: AppContext, run: Run) -> str:
