@@ -147,3 +147,18 @@ class ChatEntry(Base):
     tool_call_id: Mapped[str | None] = mapped_column(String(128))
     name: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class Artifact(Base):
+    """AI-written output for a run (decisions, research report, what changed, personas). Latest per kind."""
+
+    __tablename__ = "artifacts"
+    __table_args__ = (UniqueConstraint("run_id", "kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    content: Mapped[dict[str, Any]] = mapped_column(JSON)
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

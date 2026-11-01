@@ -125,6 +125,79 @@ def _fake_core_tag(text: str) -> dict:
     return {"category": "made-up", "themes": [], "journey_stage": "nowhere", "emotion": "meh"}
 
 
+def _fake_artifact(props: dict, prompt: str) -> dict | None:
+    """Scripted decision artifacts that cite one real review id and one invented id."""
+    if "FACTS:" not in prompt:
+        return None
+    real = re.search(r'"id": "([^"]+)"', prompt.split("FACTS:", 1)[1]).group(1)
+    ids = [real, "made-up-id"]
+    if "decisions" in props:
+        decision = {
+            "title": "Make login reliable",
+            "lens": "product",
+            "action": "fix",
+            "theme": "login problems",
+            "problem": "People can't log in.",
+            "evidence": "20 reviews, 100% negative",
+            "review_ids": ids,
+            "who": "Everyone",
+            "root_causes": ["Session bug"],
+            "how_might_we": ["How might we..."],
+            "options": [{"idea": "Retry login", "effort": "low"}],
+            "impact": "high",
+            "confidence": "high",
+            "effort": "medium",
+            "metric": "negative share of login problems",
+            "risk_of_inaction": "Churn",
+        }
+        protect = {
+            **decision,
+            "title": "Keep the design",
+            "lens": "design",
+            "action": "protect",
+            "theme": "beautiful design",
+            "impact": "low",
+            "confidence": "medium",
+            "effort": "high",
+        }
+        return {"decisions": [protect, decision]}
+    if "key_findings" in props:
+        return {
+            "title": "Login is the problem",
+            "summary": "Summary.",
+            "key_findings": [
+                {"heading": "Login fails", "detail": "Many login problems.", "review_ids": ids},
+                {"heading": "Crashes on the map", "detail": "The app crashes on the map.", "review_ids": []},
+            ],
+            "user_needs": ["Users need to log in"],
+            "opportunities": [],
+            "recommendations": [{"heading": "Fix login", "detail": "Now.", "when": "soon"}],
+            "open_questions": ["Which devices?"],
+        }
+    if "changes" in props:
+        return {
+            "headline": "Login got worse.",
+            "next_step": "Fix login.",
+            "changes": [{"kind": "worse", "theme": "login problems", "detail": "Up.", "review_ids": ids}],
+        }
+    if "personas" in props:
+        return {
+            "personas": [
+                {
+                    "name": "The veteran",
+                    "who": "Long-time user",
+                    "goals": ["Play"],
+                    "frustrations": ["Login"],
+                    "behaviours": ["Daily"],
+                    "how_common": "10 reviews",
+                    "design_implications": ["Easy login"],
+                    "review_ids": ids,
+                }
+            ]
+        }
+    return None
+
+
 class FakeProvider(LLMProvider):
     def __init__(self, calls: dict, fail: LLMError | None = None):
         self.calls = calls
@@ -137,6 +210,10 @@ class FakeProvider(LLMProvider):
         if self.fail:
             raise self.fail
         props = schema.get("properties", {})
+        artifact = _fake_artifact(props, prompt)
+        if artifact is not None:
+            self.calls["artifact"] = self.calls.get("artifact", 0) + 1
+            return artifact, Usage(50, 40)
         if "results" in props:
             self.calls["tag"] = self.calls.get("tag", 0) + 1
             items = json.loads(prompt.split("REVIEWS:\n", 1)[1])
