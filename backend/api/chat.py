@@ -1,21 +1,24 @@
-"""Chat with the research assistant about one analysis. Replies stream as server-sent events."""
+"""Chats with the research assistant about one analysis. Each analysis has its own chats (sessions); a chat only
+ever sees its own messages and its own analysis. Replies stream as server-sent events."""
 
 from __future__ import annotations
 
 import json
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from ..analytics.frame import load_run_frame
+from ..analytics.insights import problem_board
 from ..assistant.agent import CITATION, SUGGESTIONS, SYSTEM, collect_reviews, run_agent, step_label
 from ..assistant.tools import ToolContext
 from ..context import AppContext, get_ctx
 from ..db import utcnow
-from ..models import ChatEntry, Run, RunStatus
+from ..models import ChatEntry, ChatSession, Run, RunStatus
 from ..providers import ChatMessage, LLMError, ToolCall, resolve_config
 from ..schemas import LLMConfigIn
 
@@ -28,6 +31,22 @@ class ChatIn(BaseModel):
     llm: LLMConfigIn
 
 
+class RenameIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+
+
+TITLE_CHARS = 60
+
+
+def title_from(message: str) -> str:
+    """A chat's title: its first question, shortened at a word boundary."""
+    text = " ".join(message.split())
+    if len(text) <= TITLE_CHARS:
+        return text
+    cut = text[:TITLE_CHARS].rsplit(" ", 1)[0]
+    return (cut or text[:TITLE_CHARS]).rstrip(",.;:") + "…"
+
+
 def _completed_run(ctx: AppContext, run_id: str) -> Run:
     with ctx.db.session() as s:
         run = s.get(Run, run_id)
@@ -38,9 +57,40 @@ def _completed_run(ctx: AppContext, run_id: str) -> Run:
     return run
 
 
-def _history(ctx: AppContext, run_id: str) -> list[ChatMessage]:
+def _session(ctx: AppContext, run_id: str, session_id: str) -> ChatSession:
+    """A chat of this analysis. A chat id from another analysis is treated as not found, so context never mixes."""
     with ctx.db.session() as s:
-        entries = s.scalars(select(ChatEntry).where(ChatEntry.run_id == run_id).order_by(ChatEntry.id)).all()
+        found = s.get(ChatSession, session_id)
+    if found is None or found.run_id != run_id:
+        raise HTTPException(404, "Chat not found.")
+    return found
+
+
+def _adopt_orphans(ctx: AppContext, run_id: str) -> None:
+    """Move messages saved before chats had sessions into one "Earlier conversation" chat."""
+    with ctx.db.session() as s:
+        orphans = s.scalars(
+            select(ChatEntry).where(ChatEntry.run_id == run_id, ChatEntry.session_id.is_(None)).order_by(ChatEntry.id)
+        ).all()
+        if not orphans:
+            return
+        first_question = next((e.content for e in orphans if e.role == "user"), "")
+        chat = ChatSession(
+            id=uuid.uuid4().hex,
+            run_id=run_id,
+            title=title_from(first_question) if first_question else "Earlier conversation",
+            created_at=orphans[0].created_at,
+            updated_at=orphans[-1].created_at,
+        )
+        s.add(chat)
+        s.flush()
+        for e in orphans:
+            e.session_id = chat.id
+
+
+def _history(ctx: AppContext, session_id: str) -> list[ChatMessage]:
+    with ctx.db.session() as s:
+        entries = s.scalars(select(ChatEntry).where(ChatEntry.session_id == session_id).order_by(ChatEntry.id)).all()
     return [
         ChatMessage(
             e.role,
@@ -53,20 +103,43 @@ def _history(ctx: AppContext, run_id: str) -> list[ChatMessage]:
     ]
 
 
-def _save(ctx: AppContext, run_id: str, messages: list[ChatMessage]) -> None:
+def _save(ctx: AppContext, chat: ChatSession, messages: list[ChatMessage]) -> None:
+    now = utcnow()
     with ctx.db.session() as s:
         s.add_all(
             ChatEntry(
-                run_id=run_id,
+                run_id=chat.run_id,
+                session_id=chat.id,
                 role=m.role,
                 content=m.content,
                 tool_calls=[{"id": c.id, "name": c.name, "arguments": c.arguments} for c in m.tool_calls],
                 tool_call_id=m.tool_call_id,
                 name=m.name,
-                created_at=utcnow(),
+                created_at=now,
             )
             for m in messages
         )
+        row = s.get(ChatSession, chat.id)
+        if row is not None:
+            row.updated_at = now
+
+
+def _session_out(chat: ChatSession, questions: int = 0) -> dict:
+    return {
+        "id": chat.id,
+        "title": chat.title,
+        "questions": questions,
+        "created_at": chat.created_at.isoformat() + "Z",
+        "updated_at": chat.updated_at.isoformat() + "Z",
+    }
+
+
+def _suggestions(ctx: AppContext, run_id: str) -> list[str]:
+    """Starter questions; the first names this analysis's biggest problem."""
+    df = load_run_frame(ctx.db, run_id, ctx.frames)
+    top = problem_board(df, limit=1, quotes=0)["problems"] if df is not None and df["tagged"].any() else []
+    first = [f"Why are users unhappy about {top[0]['theme']}?"] if top else []
+    return first + SUGGESTIONS[:4]
 
 
 def _system_prompt(ctx: AppContext, run: Run) -> str:
@@ -111,30 +184,80 @@ def transcript(history: list[ChatMessage]) -> list[dict]:
     return turns
 
 
-@router.get("")
-def get_chat(run_id: str, ctx: AppContext = Depends(get_ctx)) -> dict:
+@router.get("/sessions")
+def list_sessions(run_id: str, ctx: AppContext = Depends(get_ctx)) -> dict:
     _completed_run(ctx, run_id)
-    return {"turns": transcript(_history(ctx, run_id)), "suggestions": SUGGESTIONS}
-
-
-@router.delete("", status_code=204)
-def clear_chat(run_id: str, ctx: AppContext = Depends(get_ctx)) -> Response:
+    _adopt_orphans(ctx, run_id)
     with ctx.db.session() as s:
-        s.execute(delete(ChatEntry).where(ChatEntry.run_id == run_id))
+        counts = dict(
+            s.execute(
+                select(ChatEntry.session_id, func.count())
+                .where(ChatEntry.run_id == run_id, ChatEntry.role == "user")
+                .group_by(ChatEntry.session_id)
+            ).all()
+        )
+        chats = s.scalars(
+            select(ChatSession).where(ChatSession.run_id == run_id).order_by(ChatSession.updated_at.desc())
+        ).all()
+    return {
+        "sessions": [_session_out(c, counts.get(c.id, 0)) for c in chats],
+        "suggestions": _suggestions(ctx, run_id),
+    }
+
+
+@router.post("/sessions", status_code=201)
+def create_session(run_id: str, ctx: AppContext = Depends(get_ctx)) -> dict:
+    _completed_run(ctx, run_id)
+    chat = ChatSession(id=uuid.uuid4().hex, run_id=run_id)
+    with ctx.db.session() as s:
+        s.add(chat)
+    return _session_out(chat)
+
+
+@router.get("/sessions/{session_id}")
+def get_session(run_id: str, session_id: str, ctx: AppContext = Depends(get_ctx)) -> dict:
+    chat = _session(ctx, run_id, session_id)
+    turns = transcript(_history(ctx, session_id))
+    return {**_session_out(chat, sum(1 for t in turns if t["role"] == "user")), "turns": turns}
+
+
+@router.patch("/sessions/{session_id}")
+def rename_session(run_id: str, session_id: str, body: RenameIn, ctx: AppContext = Depends(get_ctx)) -> dict:
+    _session(ctx, run_id, session_id)
+    with ctx.db.session() as s:
+        row = s.get(ChatSession, session_id)
+        row.title = " ".join(body.title.split())[:120]
+        s.flush()
+        return _session_out(row)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+def delete_session(run_id: str, session_id: str, ctx: AppContext = Depends(get_ctx)) -> Response:
+    _session(ctx, run_id, session_id)
+    with ctx.db.session() as s:
+        # Explicit: databases upgraded from older versions have no foreign key on session_id.
+        s.execute(delete(ChatEntry).where(ChatEntry.session_id == session_id))
+        s.execute(delete(ChatSession).where(ChatSession.id == session_id))
     return Response(status_code=204)
 
 
-@router.post("")
-async def send_message(run_id: str, body: ChatIn, ctx: AppContext = Depends(get_ctx)) -> StreamingResponse:
+@router.post("/sessions/{session_id}/messages")
+async def send_message(
+    run_id: str, session_id: str, body: ChatIn, ctx: AppContext = Depends(get_ctx)
+) -> StreamingResponse:
     run = _completed_run(ctx, run_id)
+    chat = _session(ctx, run_id, session_id)
     llm = resolve_config(body.llm.to_config())
     if not llm.model:
         raise HTTPException(400, "Choose an AI model in settings first.")
     provider = ctx.provider_factory(llm)  # raises LLMError (400) for a missing key or unknown provider
-    history = _history(ctx, run_id)
+    history = _history(ctx, session_id)  # this chat only: other chats and other analyses are never included
     question = ChatMessage("user", body.message.strip())
     system = _system_prompt(ctx, run)
-    _save(ctx, run_id, [question])
+    if not any(m.role == "user" for m in history) and chat.title == "New chat":
+        with ctx.db.session() as s:
+            s.get(ChatSession, session_id).title = title_from(question.content)
+    _save(ctx, chat, [question])
 
     async def stream():
         produced: list[ChatMessage] = []
@@ -156,7 +279,7 @@ async def send_message(run_id: str, body: ChatIn, ctx: AppContext = Depends(get_
         finally:
             # Save what was produced, even if the user stopped the reply part-way.
             if produced:
-                _save(ctx, run_id, produced)
+                _save(ctx, chat, produced)
             await provider.aclose()
 
     return StreamingResponse(

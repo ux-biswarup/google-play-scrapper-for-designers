@@ -7,6 +7,7 @@ import { STAGES, compact, flag, num, plural, ratingFilterLabel, shortDate } from
 import { countryName } from "../lib/locales";
 import { AppIcon } from "../components/Shell";
 import { ChatPanel } from "../components/ChatPanel";
+import { MoreMenu } from "../components/menu";
 import { Button, Notice, Spinner, cx } from "../components/ui";
 import { OverviewTab } from "./tabs/Overview";
 import { ProblemsTab } from "./tabs/Problems";
@@ -249,7 +250,7 @@ function Dashboard({ run }: { run: Run }) {
             <span>{shortDate(run.created_at)}</span>
           </p>
         </div>
-        <div className="flex gap-2 print:hidden">
+        <div className="flex items-center gap-2 print:hidden">
           {run.app.store_url && (
             <a
               href={run.app.store_url}
@@ -260,11 +261,6 @@ function Dashboard({ run }: { run: Run }) {
               <ExternalLink className="size-4" aria-hidden /> Play Store
             </a>
           )}
-          {!chatOpen && (
-            <Button size="sm" variant="primary" onClick={() => toggleChat(true)}>
-              <MessageSquareText className="size-4" aria-hidden /> Ask AI
-            </Button>
-          )}
           {run.status === "completed" && run.provider !== "legacy" && (
             <Button size="sm" onClick={() => navigate(`/benchmark?add=${run.id}`)}>
               <Columns3 className="size-4" aria-hidden /> Compare
@@ -273,14 +269,26 @@ function Dashboard({ run }: { run: Run }) {
           <Button size="sm" onClick={() => navigate("/new", { state: { rerun: run } })}>
             <RotateCcw className="size-4" aria-hidden /> Run again
           </Button>
+          <MoreMenu
+            label="More actions for this analysis"
+            items={[
+              {
+                label: remove.isPending ? "Deleting…" : "Delete analysis",
+                icon: <Trash2 className="size-4" aria-hidden />,
+                danger: true,
+                onSelect: () => window.confirm(`Delete this analysis of ${title}? Its chats and pins go too.`) && remove.mutate(),
+              },
+            ]}
+          />
           <Button
             size="sm"
-            variant="danger"
-            busy={remove.isPending}
-            onClick={() => window.confirm(`Delete this analysis of ${title}?`) && remove.mutate()}
-            aria-label="Delete analysis"
+            variant={chatOpen ? "secondary" : "primary"}
+            aria-pressed={chatOpen}
+            onClick={() => toggleChat(!chatOpen)}
+            title={chatOpen ? "Close the assistant" : "Ask questions about this analysis"}
+            className={chatOpen ? "bg-soft" : undefined}
           >
-            <Trash2 className="size-4" aria-hidden />
+            <MessageSquareText className="size-4" aria-hidden /> Ask AI
           </Button>
         </div>
       </header>
@@ -315,7 +323,8 @@ function Dashboard({ run }: { run: Run }) {
     </div>
     {chatOpen && (
       <div className="fixed inset-0 z-40 lg:static lg:z-auto lg:w-[26rem] lg:shrink-0 lg:border-l lg:border-line print:hidden">
-        <ChatPanel run={run} onClose={() => toggleChat(false)} />
+        {/* Keyed by analysis: switching apps starts the assistant fresh, with that analysis's own chats. */}
+        <ChatPanel key={run.id} run={run} onClose={() => toggleChat(false)} />
       </div>
     )}
     </div>

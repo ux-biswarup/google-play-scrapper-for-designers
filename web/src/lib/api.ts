@@ -335,13 +335,23 @@ export type ChatEvent =
   | { type: "error"; message: string }
   | { type: "done"; usage: { input_tokens: number; output_tokens: number } };
 
-export const chatApi = {
-  get: (runId: string) => request<{ turns: ChatTurn[]; suggestions: string[] }>(`/runs/${runId}/chat`),
-  clear: (runId: string) => request<void>(`/runs/${runId}/chat`, { method: "DELETE" }),
+/** One conversation about one analysis. Chats never share context with each other or other analyses. */
+export type ChatSession = { id: string; title: string; questions: number; created_at: string; updated_at: string };
 
-  /** Send a message and yield the streamed reply events. */
-  async *send(runId: string, message: string, llm: LLMConfig, signal: AbortSignal): AsyncGenerator<ChatEvent> {
-    const res = await fetch(`/api/runs/${runId}/chat`, {
+export const chatApi = {
+  sessions: (runId: string) =>
+    request<{ sessions: ChatSession[]; suggestions: string[] }>(`/runs/${runId}/chat/sessions`),
+  create: (runId: string) => request<ChatSession>(`/runs/${runId}/chat/sessions`, { method: "POST" }),
+  get: (runId: string, sessionId: string) =>
+    request<ChatSession & { turns: ChatTurn[] }>(`/runs/${runId}/chat/sessions/${sessionId}`),
+  rename: (runId: string, sessionId: string, title: string) =>
+    request<ChatSession>(`/runs/${runId}/chat/sessions/${sessionId}`, { method: "PATCH", body: JSON.stringify({ title }) }),
+  remove: (runId: string, sessionId: string) =>
+    request<void>(`/runs/${runId}/chat/sessions/${sessionId}`, { method: "DELETE" }),
+
+  /** Send a message to one chat and yield the streamed reply events. */
+  async *send(runId: string, sessionId: string, message: string, llm: LLMConfig, signal: AbortSignal): AsyncGenerator<ChatEvent> {
+    const res = await fetch(`/api/runs/${runId}/chat/sessions/${sessionId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, llm }),

@@ -34,10 +34,18 @@ def test_chat_tools_are_bound_to_the_analysis():
     assert step_label("query_metrics", {"measures": ["review_count"], "dimensions": ["theme"]}).endswith("by theme")
 
 
+def _new_chat(client, run_id: str) -> str:
+    return client.post(f"/api/runs/{run_id}/chat/sessions").json()["id"]
+
+
+def _ask(client, run_id: str, chat_id: str, message: str):
+    return client.post(f"/api/runs/{run_id}/chat/sessions/{chat_id}/messages", json={"message": message, "llm": LLM})
+
+
 def test_chat_answers_with_tools_and_citations(client, llm_calls):
     run_id = _finished_run(client)
-    response = client.post(f"/api/runs/{run_id}/chat", json={"message": "What hurts most?", "llm": LLM})
-    events = _events(response)
+    chat_id = _new_chat(client, run_id)
+    events = _events(_ask(client, run_id, chat_id, "What hurts most?"))
     kinds = [e["type"] for e in events]
     assert kinds[0] == "tool" and events[0]["label"] == "Read the problem board"
     assert events[1]["type"] == "tool_result" and events[1]["ok"] and events[1]["reviews"]
@@ -46,23 +54,84 @@ def test_chat_answers_with_tools_and_citations(client, llm_calls):
     assert cited in events[1]["reviews"]  # the citation points at a real review the tool returned
     assert kinds[-1] == "done"
 
-    chat = client.get(f"/api/runs/{run_id}/chat").json()
+    chat = client.get(f"/api/runs/{run_id}/chat/sessions/{chat_id}").json()
+    assert chat["title"] == "What hurts most?" and chat["questions"] == 1  # titled from the first question
     assert [t["role"] for t in chat["turns"]] == ["user", "assistant"]
     assistant = chat["turns"][1]
     assert assistant["steps"][0]["label"] == "Read the problem board"
     assert cited in assistant["reviews"] and "[[r:" in assistant["text"]
-    assert chat["suggestions"]
 
     # A follow-up sends the earlier conversation (user, tool call, tool result, answer) back to the model.
-    client.post(f"/api/runs/{run_id}/chat", json={"message": "And the second?", "llm": LLM})
+    _ask(client, run_id, chat_id, "And the second?")
     assert llm_calls["chat_history_sizes"][-2] == 5
-    assert client.delete(f"/api/runs/{run_id}/chat").status_code == 204
-    assert client.get(f"/api/runs/{run_id}/chat").json()["turns"] == []
+    assert client.get(f"/api/runs/{run_id}/chat/sessions/{chat_id}").json()["title"] == "What hurts most?"
+
+
+def test_chats_never_share_context(client, llm_calls):
+    first_run, other_run = _finished_run(client), _finished_run(client)
+    first = _new_chat(client, first_run)
+    _ask(client, first_run, first, "What hurts most?")
+
+    # A second chat on the same analysis starts empty: the model sees only the new question.
+    second = _new_chat(client, first_run)
+    _ask(client, first_run, second, "Anything else?")
+    assert llm_calls["chat_history_sizes"][-2] == 1
+    assert [t["text"] for t in client.get(f"/api/runs/{first_run}/chat/sessions/{second}").json()["turns"][:1]] == [
+        "Anything else?"
+    ]
+
+    # Another analysis can't read or continue this analysis's chats, and lists none of them.
+    assert client.get(f"/api/runs/{other_run}/chat/sessions/{first}").status_code == 404
+    assert _ask(client, other_run, first, "hi").status_code == 404
+    assert client.get(f"/api/runs/{other_run}/chat/sessions").json()["sessions"] == []
+
+    listed = client.get(f"/api/runs/{first_run}/chat/sessions").json()
+    assert [c["id"] for c in listed["sessions"]] == [second, first]  # most recent first
+    assert listed["suggestions"][0] == "Why are users unhappy about login problems?"
+
+
+def test_rename_and_delete_chats(client):
+    run_id = _finished_run(client)
+    chat_id = _new_chat(client, run_id)
+    _ask(client, run_id, chat_id, "What hurts most?")
+    renamed = client.patch(f"/api/runs/{run_id}/chat/sessions/{chat_id}", json={"title": "  Login   deep dive "})
+    assert renamed.json()["title"] == "Login deep dive"
+    assert client.delete(f"/api/runs/{run_id}/chat/sessions/{chat_id}").status_code == 204
+    assert client.get(f"/api/runs/{run_id}/chat/sessions/{chat_id}").status_code == 404
+    assert client.get(f"/api/runs/{run_id}/chat/sessions").json()["sessions"] == []
+
+
+def test_messages_from_before_sessions_become_one_chat(client):
+    from backend.models import ChatEntry
+
+    run_id = _finished_run(client)
+    db = client.app.state.ctx.db
+    with db.session() as s:
+        s.add_all(
+            [
+                ChatEntry(
+                    run_id=run_id, role="user", content="An old question about crashes and much more besides that"
+                ),
+                ChatEntry(run_id=run_id, role="assistant", content="An old answer."),
+            ]
+        )
+    sessions = client.get(f"/api/runs/{run_id}/chat/sessions").json()["sessions"]
+    assert len(sessions) == 1 and sessions[0]["questions"] == 1
+    assert sessions[0]["title"] == "An old question about crashes and much more besides that"
+    turns = client.get(f"/api/runs/{run_id}/chat/sessions/{sessions[0]['id']}").json()["turns"]
+    assert [t["text"] for t in turns] == ["An old question about crashes and much more besides that", "An old answer."]
+
+
+def test_long_titles_are_shortened():
+    from backend.api.chat import title_from
+
+    title = title_from("Which of the onboarding problems hurt new users the most, and what should we fix first?")
+    assert title.endswith("…") and len(title) <= 61 and "  " not in title
 
 
 def test_bad_tool_arguments_are_reported_back_to_the_model(client):
     run_id = _finished_run(client)
-    events = _events(client.post(f"/api/runs/{run_id}/chat", json={"message": "bad metric please", "llm": LLM}))
+    events = _events(_ask(client, run_id, _new_chat(client, run_id), "bad metric please"))
     result = next(e for e in events if e["type"] == "tool_result")
     assert result["ok"] is False
     text = "".join(e["delta"] for e in events if e["type"] == "text")
@@ -73,10 +142,11 @@ def test_chat_errors_are_streamed_not_raised(client, provider_failure):
     from backend.providers import LLMError
 
     run_id = _finished_run(client)
+    chat_id = _new_chat(client, run_id)
     provider_failure["error"] = LLMError("OpenAI rejected the API key.", fatal=True)
-    events = _events(client.post(f"/api/runs/{run_id}/chat", json={"message": "hi", "llm": LLM}))
+    events = _events(_ask(client, run_id, chat_id, "hi"))
     assert events[-1] == {"type": "error", "message": "OpenAI rejected the API key."}
-    assert client.post("/api/runs/missing/chat", json={"message": "hi", "llm": LLM}).status_code == 404
+    assert client.post("/api/runs/missing/chat/sessions").status_code == 404
 
 
 def test_mcp_server_serves_the_same_tools(client):

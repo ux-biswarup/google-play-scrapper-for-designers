@@ -138,13 +138,28 @@ class Insight(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class ChatSession(Base):
+    """One conversation with the assistant about one analysis. An analysis can have many; they never share
+    context with each other or with other analyses."""
+
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(120), default="New chat")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class ChatEntry(Base):
-    """One message of the assistant conversation about a run (user, assistant or tool result)."""
+    """One message of a chat session (user, assistant or tool result)."""
 
     __tablename__ = "chat_entries"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), index=True)
+    # Null only for messages saved before sessions existed; they are moved into a session when first listed.
+    session_id: Mapped[str | None] = mapped_column(ForeignKey("chat_sessions.id", ondelete="CASCADE"), index=True)
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text, default="")
     tool_calls: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
