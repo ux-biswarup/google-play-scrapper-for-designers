@@ -5,10 +5,12 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   ArrowUp,
+  ArrowUpRight,
   Check,
   Copy,
   History,
   Loader2,
+  MessageSquareText,
   Pencil,
   RotateCcw,
   Search,
@@ -22,6 +24,7 @@ import { chatApi, type ChatEvent, type ChatSession, type ChatTurn, type CitedRev
 import { relativeTime, shortDate } from "../lib/format";
 import { highlightParts } from "../lib/runSearch";
 import { toLLMConfig, useConnection } from "../lib/settings";
+import { AppIcon } from "./Shell";
 import { Notice, Stars, cx } from "./ui";
 
 const CITATION = /\[\[r:([^\]\s]+)\]\]/g;
@@ -681,7 +684,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
           role="tablist"
           aria-label="Open chats"
           onKeyDown={onTabKey}
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,black_6px,black_calc(100%-10px),transparent)]"
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 [mask-image:linear-gradient(to_right,transparent,black_6px,black_calc(100%-10px),transparent)]"
         >
           {tabs.open.map((id) => {
             const selected = id === active;
@@ -772,27 +775,42 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
             {!isNew(active) && chat.isLoading ? (
               <Loader2 className="size-4 animate-spin text-muted" aria-label="Loading" />
             ) : turns.length === 0 ? (
-              <div className="flex flex-col gap-4 pt-2">
-                <div>
-                  <p className="font-semibold">Ask about {appName}</p>
-                  <p className="mt-1 text-sm text-muted">
-                    The assistant looks up this analysis of {run.review_count} reviews, then answers with numbers and real
-                    quotes. It can't see other analyses or chats.
-                  </p>
+              // Empty chat: sits at the bottom, right above the composer, where the eye already is.
+              <div className="flex min-h-full flex-col justify-end gap-5">
+                <div className="flex items-center gap-3">
+                  <AppIcon src={run.app.icon_url} title={appName} size={40} />
+                  <div className="min-w-0">
+                    <h3 className="truncate text-base font-semibold tracking-tight">Ask about {appName}</h3>
+                    <p className="text-sm text-muted">Answers use its {run.review_count} reviews and quote them.</p>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <p className="text-xs font-medium text-muted">Try asking</p>
-                  {list.data?.suggestions.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => send(s)}
-                      disabled={!ready || isBusy}
-                      className="rounded-lg border border-line px-3 py-2 text-left text-sm hover:border-muted hover:bg-soft disabled:opacity-50"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
+                {(list.data?.suggestions.length ?? 0) > 0 && (
+                  <div>
+                    <h4 className="mb-1.5 px-1 text-xs font-medium text-muted">Try asking</h4>
+                    <ul className="flex flex-col gap-1">
+                      {list.data!.suggestions.map((s, i) => (
+                        <li key={s}>
+                          <button
+                            onClick={() => send(s)}
+                            disabled={!ready || isBusy}
+                            className="group flex w-full items-start gap-2.5 rounded-lg border border-line bg-panel px-3 py-2 text-left text-sm transition-colors hover:border-muted/60 hover:bg-soft disabled:opacity-50"
+                          >
+                            <MessageSquareText className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
+                            <span className="min-w-0 flex-1">
+                              {s}
+                              {i === 0 && s.startsWith("Why are users unhappy") && (
+                                <span className="ml-1.5 inline-block rounded-full bg-soft px-1.5 align-[1px] text-[10px] font-medium text-muted group-hover:bg-panel">
+                                  Top problem
+                                </span>
+                              )}
+                            </span>
+                            <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-6">

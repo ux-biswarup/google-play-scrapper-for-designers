@@ -89,6 +89,16 @@ body {
   );
 }
 
+/* No visible scrollbars anywhere; areas still scroll with wheel, trackpad, touch and keyboard. */
+@layer base {
+  * {
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* Base layer, so components can replace it (e.g. the chat composer shows focus on its own border). */
 @layer base {
   :focus-visible {

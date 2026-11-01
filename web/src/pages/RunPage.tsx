@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Columns3, ExternalLink, Loader2, MessageSquareText, RotateCcw, Trash2 } from "lucide-react";
@@ -160,7 +160,10 @@ const TABS: { id: TabId; label: string }[] = VIEW_GROUPS.flatMap((g) => [...g.vi
 
 function ViewNav({ tab, onSelect }: { tab: TabId; onSelect: (id: TabId) => void }) {
   return (
-    <nav aria-label="Analysis views" className="lg:sticky lg:top-6 lg:self-start print:hidden">
+    <nav
+      aria-label="Analysis views"
+      className="lg:sticky lg:top-6 lg:max-h-[calc(100cqh-3rem)] lg:self-start lg:overflow-y-auto print:hidden"
+    >
       {/* Wide screens: grouped vertical list. Narrow screens: one scrollable row. */}
       <div className="hidden flex-col gap-5 lg:flex">
         {VIEW_GROUPS.map((group) => (
@@ -219,6 +222,11 @@ function Dashboard({ run }: { run: Run }) {
   const title = run.app.title ?? run.app.store_id;
   const legacy = run.provider === "legacy";
   const [chatOpen, setChatOpen] = useState(() => localStorage.getItem("ri.chat-open") === "1");
+  // Each view starts at the top of the content area.
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: 0 });
+  }, [tab]);
   const [chatWidth, setChatWidth, chatLimits] = usePanelWidth("ri.chat-width");
   const [resizing, setResizing] = useState(false);
   const [chatMounted, setChatMounted] = useState(chatOpen);
@@ -231,11 +239,14 @@ function Dashboard({ run }: { run: Run }) {
   return (
     <PinProvider runId={run.id}>
     <div className="flex h-full min-h-0">
-    <div className="min-w-0 flex-1 overflow-y-auto">
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    {/* Wide screens: the app header and the view menu stay put; only the content area scrolls. Narrow screens
+        and print: one normal scrolling page. */}
+    <div className="flex min-w-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden print:block print:overflow-visible">
+    <div className="shrink-0 border-line bg-paper lg:border-b">
+    <div className="mx-auto max-w-7xl px-6 pt-8 pb-5">
       <header className="flex flex-wrap items-start gap-4">
         <AppIcon src={run.app.icon_url} title={title} size={56} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[16rem] flex-1">
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
             {run.country && (
@@ -303,8 +314,17 @@ function Dashboard({ run }: { run: Run }) {
           <Notice title={run.message} />
         </div>
       )}
+    </div>
+    </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
+    {/* The scroll area spans the full width (so the margins scroll too); the menu sticks to its top and is
+        never taller than the visible area. */}
+    <div
+      ref={scroller}
+      className="min-h-0 flex-1 lg:overflow-y-auto lg:[container-type:size] print:overflow-visible print:[container-type:normal]"
+    >
+    <div className="mx-auto max-w-7xl px-6 pb-8">
+      <div className="grid gap-6 pt-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
         <ViewNav tab={tab} onSelect={(id) => setParams({ tab: id })} />
         <div className="min-w-0">
           {tab === "overview" && <OverviewTab run={run} />}
@@ -324,6 +344,7 @@ function Dashboard({ run }: { run: Run }) {
           {tab === "reviews" && <ReviewsTab run={run} />}
         </div>
       </div>
+    </div>
     </div>
     </div>
     {/* Opens and closes with the same width slide as the left navigation. The inner box keeps the full width,
