@@ -97,8 +97,9 @@ class PendingSignIn:
 
 
 class ChatGPTAuth:
-    def __init__(self, data_dir: Path, post_form=_post_form, verify_id_token=None):
+    def __init__(self, data_dir: Path, post_form=_post_form, verify_id_token=None, cipher=None):
         self.data_dir = data_dir
+        self._cipher = cipher  # Vault: encrypts the token file at rest
         self._post_form = post_form
         self._verify = verify_id_token or self._verify_with_jwks
         self._pending: dict[str, PendingSignIn] = {}
@@ -138,7 +139,33 @@ class ChatGPTAuth:
         return host
 
     def credentials(self) -> dict | None:
-        return self._read(self._creds_path)
+        path = self._creds_path
+        if not path.exists():
+            return None
+        raw = path.read_bytes()
+        if self._cipher is not None:
+            try:
+                return json.loads(self._cipher.decrypt(raw))
+            except Exception:  # noqa: BLE001 - older plain-text file: read it, then re-save encrypted
+                pass
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        if self._cipher is not None:
+            self._write_creds(data)
+        return data
+
+    def _write_creds(self, data: dict) -> None:
+        if self._cipher is None:
+            self._write(self._creds_path, data)
+            return
+        tmp = self._creds_path.with_suffix(".tmp")
+        self._creds_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(self._cipher.encrypt(json.dumps(data).encode()))
+        os.replace(tmp, self._creds_path)
 
     # ---- sign-in ----------------------------------------------------------------------------
 
@@ -224,8 +251,7 @@ class ChatGPTAuth:
 
     def _save_tokens(self, tokens: dict, client_id: str, scopes: list[str], claims: dict | None) -> None:
         previous = self.credentials() or {}
-        self._write(
-            self._creds_path,
+        self._write_creds(
             {
                 "email": (claims or {}).get("email") or previous.get("email"),
                 "subject": (claims or {}).get("sub") or previous.get("subject"),
@@ -309,9 +335,9 @@ class ChatGPTAuth:
 _instance: ChatGPTAuth | None = None
 
 
-def configure(data_dir: Path) -> ChatGPTAuth:
+def configure(data_dir: Path, cipher=None) -> ChatGPTAuth:
     global _instance
-    _instance = ChatGPTAuth(data_dir)
+    _instance = ChatGPTAuth(data_dir, cipher=cipher)
     return _instance
 
 

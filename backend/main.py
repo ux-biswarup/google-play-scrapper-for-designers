@@ -6,6 +6,7 @@ If the frontend has been built (web/dist), it is served from the same address.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from google_play_scraper.exceptions import ExtraHTTPError
 
 from .analytics.frame import FrameCache
-from .api import apps, artifacts, auth, chat, connect, insights, providers, runs, views
+from .api import apps, artifacts, auth, chat, connect, insights, keys, providers, runs, views
 from .assistant.tools import ToolContext
 from .config import Settings, load_settings
 from .context import AppContext
@@ -25,7 +26,8 @@ from .db import Database
 from .jobs import JobManager
 from .mcp_server import build_mcp_server, http_security
 from .providers import LLMError, create_provider
-from .services import chatgpt_auth
+from .security import LocalOnlyMiddleware
+from .services import chatgpt_auth, vault
 from .services.pipeline import AnalysisPipeline, ProviderFactory
 from .services.play_store import AppNotFound, PlayStoreClient
 
@@ -44,7 +46,8 @@ def create_app(
     store = store or PlayStoreClient()
     provider_factory = provider_factory or create_provider
     jobs = JobManager()
-    chatgpt_auth.configure(settings.data_dir)
+    secrets = vault.configure(settings.data_dir, use_keychain=settings.use_keychain)
+    chatgpt_auth.configure(settings.data_dir, cipher=secrets)
     ctx = AppContext(
         settings=settings,
         db=db,
@@ -72,6 +75,8 @@ def create_app(
     app.add_middleware(
         CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["*"], allow_headers=["*"]
     )
+    extra_hosts = tuple(h.strip() for h in os.getenv("MCP_ALLOWED_HOSTS", "").split(",") if h.strip())
+    app.add_middleware(LocalOnlyMiddleware, allowed_hosts=settings.allowed_hosts + extra_hosts)
 
     @app.exception_handler(ValueError)
     async def _bad_request(_req: Request, exc: ValueError):
@@ -103,6 +108,7 @@ def create_app(
         auth.router,
         views.router,
         artifacts.router,
+        keys.router,
     ):
         app.include_router(router, prefix="/api")
     app.mount("/mcp", mcp_http)

@@ -276,6 +276,9 @@ class FakeProvider(LLMProvider):
 def _isolate_env(monkeypatch):
     """Ignore keys/models from the developer's real .env so tests behave the same everywhere."""
     from backend.providers import PROVIDERS
+    from backend.services import vault
+
+    monkeypatch.setattr(vault, "_instance", None)  # each app gets its own vault; no keys leak between tests
 
     for spec in PROVIDERS.values():
         if spec.env_var:
@@ -302,7 +305,14 @@ def client(llm_calls, provider_failure, tmp_path):
         return FakeProvider(llm_calls, provider_failure.get("error"))
 
     app = create_app(
-        Settings(database_url="sqlite://", data_dir=tmp_path, batch_size=10, llm_concurrency=3),
+        Settings(
+            database_url="sqlite://",
+            data_dir=tmp_path,
+            batch_size=10,
+            llm_concurrency=3,
+            allowed_hosts=TEST_HOSTS,
+            use_keychain=False,  # never touch the developer's real keychain
+        ),
         store=FakeStore(),
         provider_factory=factory,
     )
@@ -319,6 +329,8 @@ def wait_for_run(client: TestClient, run_id: str, timeout: float = 15.0) -> dict
         time.sleep(0.05)
     raise AssertionError(f"run {run_id} did not finish: {run}")
 
+
+TEST_HOSTS = ("127.0.0.1", "localhost", "testserver")
 
 RUN_BODY = {
     "app": "https://play.google.com/store/apps/details?id=com.example.app&hl=en",

@@ -16,6 +16,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from ..services.chatgpt_auth import ChatGPTAuthError, get_auth
+from ..services.vault import get_vault
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -67,6 +68,7 @@ async def chatgpt_signout() -> dict:
 class OpenRouterExchangeIn(BaseModel):
     code: str = Field(min_length=1)
     code_verifier: str = Field(min_length=43)
+    remember: bool = True
 
 
 @router.post("/openrouter/exchange")
@@ -92,4 +94,8 @@ async def openrouter_exchange(body: OpenRouterExchangeIn) -> dict:
     data = await asyncio.to_thread(exchange)
     if not data.get("key"):
         raise HTTPException(400, "OpenRouter didn't return a key. Try again.")
-    return {"key": data["key"]}
+    vault = get_vault()
+    if vault is None:
+        raise HTTPException(503, "Key storage isn't available.")
+    # The key goes straight into the encrypted vault; the browser only gets a hint.
+    return vault.set("provider:openrouter", data["key"], remember=body.remember)

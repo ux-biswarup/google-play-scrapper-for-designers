@@ -13,7 +13,11 @@ export type Provider = {
   default_model: string | null;
   /** ChatGPT plan only: signed in with plan usage granted. */
   connected: boolean | null;
+  /** A key saved in the encrypted vault (only a masked hint is ever sent). */
+  saved_key: SavedKey | null;
 };
+
+export type SavedKey = { name: string; hint: string; storage: "saved" | "session"; saved_at: number };
 
 export type LLMConfig = { provider: string; model?: string; api_key?: string; base_url?: string };
 
@@ -389,8 +393,9 @@ export const authApi = {
   chatgptStatus: () => request<ChatGPTStatus>("/auth/chatgpt"),
   chatgptStart: (returnTo: string) => request<{ url: string }>("/auth/chatgpt/start", post({ return_to: returnTo })),
   chatgptSignOut: () => request<{ revoked: boolean }>("/auth/chatgpt/signout", { method: "POST" }),
-  openrouterExchange: (code: string, codeVerifier: string) =>
-    request<{ key: string }>("/auth/openrouter/exchange", post({ code, code_verifier: codeVerifier })),
+  /** The backend stores the new key in its vault; only a hint comes back. */
+  openrouterExchange: (code: string, codeVerifier: string, remember: boolean) =>
+    request<SavedKey>("/auth/openrouter/exchange", post({ code, code_verifier: codeVerifier, remember })),
 };
 
 // ---- Decision views ---------------------------------------------------------------------------
@@ -480,4 +485,13 @@ export const viewsApi = {
   emotions: (id: string) => request<EmotionsView>(`/runs/${id}/views/emotions`),
   segments: (id: string, by: string) => request<SegmentsView>(`/runs/${id}/views/segments${query({ by })}`),
   risks: (id: string) => request<RisksView>(`/runs/${id}/views/risks`),
+};
+
+// ---- Saved API keys (encrypted on this computer; never returned) -------------------------------
+
+export const keysApi = {
+  list: () => request<{ protection: "keychain" | "file" | "provided"; keys: SavedKey[] }>("/keys"),
+  save: (provider: string, apiKey: string, remember: boolean) =>
+    request<SavedKey>(`/keys/${provider}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey, remember }) }),
+  remove: (provider: string) => request<void>(`/keys/${provider}`, { method: "DELETE" }),
 };

@@ -163,7 +163,13 @@ def test_serves_built_frontend(tmp_path):
     (tmp_path / "index.html").write_text("<div id=root></div>")
     (tmp_path / "assets" / "app.js").write_text("console.log(1)")
     (tmp_path.parent / "secret.txt").write_text("nope")
-    settings = Settings(database_url="sqlite://", web_dist=tmp_path, data_dir=tmp_path / "data")
+    settings = Settings(
+        database_url="sqlite://",
+        web_dist=tmp_path,
+        data_dir=tmp_path / "data",
+        allowed_hosts=("testserver",),
+        use_keychain=False,
+    )
     with TestClient(create_app(settings)) as client:
         assert client.get("/runs/abc").text == "<div id=root></div>"  # client-side route
         assert client.get("/assets/app.js").text == "console.log(1)"

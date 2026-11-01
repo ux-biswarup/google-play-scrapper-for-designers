@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Eye, EyeOff } from "lucide-react";
-import { api, type Provider } from "../lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
+import { api, keysApi, type Provider } from "../lib/api";
 import { toLLMConfig, useConnection, type AIConnection } from "../lib/settings";
 import { Button, Field, Input, Notice, Select, cx } from "../components/ui";
 import { QuickConnect } from "../components/QuickConnect";
@@ -37,12 +37,16 @@ function ProviderOption({ provider, checked, onSelect }: { provider: Provider; c
 
 export function SettingsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { connection, providers, save } = useConnection();
-  const [draft, setDraft] = useState<AIConnection>(
-    connection ?? { provider: "openai", model: "", apiKey: "", baseUrl: "", remember: false },
-  );
+  const [draft, setDraft] = useState<AIConnection>(connection ?? { provider: "openai", model: "", baseUrl: "" });
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
+  // A typed key is held only in this component until it's saved to the encrypted vault.
+  const [keyInput, setKeyInput] = useState("");
+  const [remember, setRemember] = useState(true);
+  const [replacing, setReplacing] = useState(false);
+  const vault = useQuery({ queryKey: ["vault"], queryFn: keysApi.list, staleTime: 60_000 });
   const ids = { key: useId(), model: useId(), url: useId() };
   const provider = providers.find((p) => p.id === draft.provider);
   const update = (patch: Partial<AIConnection>) => {
@@ -50,8 +54,28 @@ export function SettingsPage() {
     setDraft((d) => ({ ...d, ...patch }));
   };
 
-  const models = useMutation({ mutationFn: () => api.models(toLLMConfig(draft)) });
-  const test = useMutation({ mutationFn: () => api.testConnection(toLLMConfig(draft)) });
+  const models = useMutation({ mutationFn: () => api.models(toLLMConfig(draft, keyInput)) });
+  const test = useMutation({ mutationFn: () => api.testConnection(toLLMConfig(draft, keyInput)) });
+  const savedKey = provider?.saved_key;
+  const showKeyInput = !savedKey || replacing;
+
+  const refreshKeys = () => {
+    queryClient.invalidateQueries({ queryKey: ["providers"] });
+    queryClient.invalidateQueries({ queryKey: ["vault"] });
+  };
+  const saveAll = useMutation({
+    mutationFn: async () => {
+      if (keyInput.trim()) await keysApi.save(draft.provider, keyInput.trim(), remember);
+    },
+    onSuccess: () => {
+      setKeyInput("");
+      setReplacing(false);
+      refreshKeys();
+      save(draft);
+      setSaved(true);
+    },
+  });
+  const removeKey = useMutation({ mutationFn: () => keysApi.remove(draft.provider), onSuccess: refreshKeys });
 
   // Preselect the model configured in .env for this provider.
   useEffect(() => {
@@ -62,46 +86,46 @@ export function SettingsPage() {
   const chooseProvider = (id: string) => {
     models.reset();
     test.reset();
+    setKeyInput("");
+    setReplacing(false);
     update({ provider: id, model: providers.find((p) => p.id === id)?.default_model ?? "", baseUrl: "" });
   };
 
   const keyOptional = provider?.has_env_key || provider?.requires_key === false;
-  const queryClient = useQueryClient();
 
   const chooseChatGPT = (model: string) => {
-    const next: AIConnection = { provider: "chatgpt", model, apiKey: "", baseUrl: "", remember: true };
+    const next: AIConnection = { provider: "chatgpt", model, baseUrl: "" };
     save(next);
     setDraft(next);
     queryClient.invalidateQueries({ queryKey: ["providers"] });
   };
-  const saveOpenRouterKey = useCallback(
-    (key: string, remember: boolean) => {
-      const next: AIConnection = { provider: "openrouter", model: "", apiKey: key, baseUrl: "", remember };
-      save(next); // keep the key even before a model is chosen
-      setDraft(next);
-      setSaved(false);
-    },
-    [save],
-  );
+  // OpenRouter's key was saved to the vault by the backend; just switch the connection to it.
+  const openRouterConnected = useCallback(() => {
+    const next: AIConnection = { provider: "openrouter", model: "", baseUrl: "" };
+    save(next);
+    setDraft(next);
+    setSaved(false);
+    queryClient.invalidateQueries({ queryKey: ["providers"] });
+    queryClient.invalidateQueries({ queryKey: ["vault"] });
+  }, [save, queryClient]);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">Connect an AI model</h1>
       <p className="mt-2 max-w-prose text-muted">
-        Choose who reads and tags your reviews. Your key is sent only to this app's backend on your computer and is never
-        saved in its database.
+        Choose who reads and tags your reviews. Keys are saved encrypted on this computer, never in your browser, and are
+        never shown again after you save them.
       </p>
 
       <div className="mt-8">
-        <QuickConnect remember={draft.remember} onUseChatGPT={chooseChatGPT} onOpenRouterKey={saveOpenRouterKey} />
+        <QuickConnect remember={remember} onUseChatGPT={chooseChatGPT} onOpenRouterConnected={openRouterConnected} />
       </div>
 
       <form
         className="mt-10 flex flex-col gap-8 border-t border-line pt-8"
         onSubmit={(e) => {
           e.preventDefault();
-          save(draft);
-          setSaved(true);
+          saveAll.mutate();
         }}
       >
         <fieldset className="flex flex-col gap-2">
@@ -134,26 +158,84 @@ export function SettingsPage() {
                       )
                 }
               >
-                <div className="relative">
-                  <Input
-                    id={ids.key}
-                    type={showKey ? "text" : "password"}
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={draft.apiKey}
-                    onChange={(e) => update({ apiKey: e.target.value })}
-                    placeholder={provider.has_env_key ? "Using the key from .env" : "Paste your key"}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey((s) => !s)}
-                    aria-label={showKey ? "Hide key" : "Show key"}
-                    className="absolute inset-y-0 right-0 px-3 text-muted hover:text-ink"
-                  >
-                    {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
+                {showKeyInput ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="relative">
+                      <Input
+                        id={ids.key}
+                        type={showKey ? "text" : "password"}
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={keyInput}
+                        onChange={(e) => {
+                          setSaved(false);
+                          setKeyInput(e.target.value);
+                        }}
+                        placeholder={provider.has_env_key ? "Using the key from .env" : "Paste your key"}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowKey((v) => !v)}
+                        aria-label={showKey ? "Hide key" : "Show key"}
+                        className="absolute inset-y-0 right-0 px-3 text-muted hover:text-ink"
+                      >
+                        {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                    <label className="flex items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={remember}
+                        onChange={(e) => setRemember(e.target.checked)}
+                        className="mt-0.5 size-4 accent-current"
+                      />
+                      <span>
+                        <span className="font-medium">Keep this key after the app restarts</span>
+                        <span className="block text-muted">
+                          {remember
+                            ? "Saved encrypted on this computer. Refreshing or closing the tab won't lose it."
+                            : "Kept only in the app's memory until it stops. Nothing is written to disk."}
+                        </span>
+                      </span>
+                    </label>
+                    {replacing && (
+                      <div>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setReplacing(false)}>
+                          Keep the saved key
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-panel px-3 py-2.5">
+                    <KeyRound className="size-4 text-muted" aria-hidden />
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p>
+                        Saved key <code className="rounded bg-soft px-1.5 py-0.5 text-xs">{savedKey!.hint}</code>
+                        {savedKey!.storage === "session" && <span className="text-muted"> for this session only</span>}
+                      </p>
+                      <p className="flex items-center gap-1 text-xs text-muted">
+                        <ShieldCheck className="size-3.5 text-pos" aria-hidden />
+                        {vault.data?.protection === "keychain"
+                          ? "Encrypted on this computer; the encryption key is in your system keychain."
+                          : "Encrypted on this computer; the encryption key file is readable only by you."}
+                      </p>
+                    </div>
+                    <Button type="button" size="sm" onClick={() => setReplacing(true)}>
+                      Replace
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="danger"
+                      busy={removeKey.isPending}
+                      onClick={() => window.confirm(`Remove the saved ${provider.name} key from this computer?`) && removeKey.mutate()}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
               </Field>
             )}
 
@@ -199,26 +281,14 @@ export function SettingsPage() {
             )}
             {models.isError && <Notice tone="error" title="Couldn't load models">{models.error.message}</Notice>}
 
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={draft.remember}
-                onChange={(e) => update({ remember: e.target.checked })}
-                className="mt-0.5 size-4 accent-current"
-              />
-              <span>
-                <span className="font-medium">Remember on this device</span>
-                <span className="block text-muted">When off, the key is forgotten when you close this tab.</span>
-              </span>
-            </label>
-
             {test.isSuccess && (
               <Notice title={`Connected. ${draft.model} answered in ${(test.data.latency_ms / 1000).toFixed(1)} s.`} />
             )}
             {test.isError && <Notice tone="error" title="Connection failed">{test.error.message}</Notice>}
+            {saveAll.isError && <Notice tone="error" title="Couldn't save the key">{saveAll.error.message}</Notice>}
 
             <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" variant="primary" disabled={!draft.model}>
+              <Button type="submit" variant="primary" disabled={!draft.model} busy={saveAll.isPending}>
                 Save connection
               </Button>
               <Button type="button" onClick={() => test.mutate()} busy={test.isPending} disabled={!draft.model}>

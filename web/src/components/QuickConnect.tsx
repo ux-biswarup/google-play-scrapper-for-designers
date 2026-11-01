@@ -143,12 +143,13 @@ function ChatGPTCard({ onUse }: { onUse: (model: string) => void }) {
   );
 }
 
-function OpenRouterCard({ remember, onConnected }: { remember: boolean; onConnected: (key: string, remember: boolean) => void }) {
+function OpenRouterCard({ remember, onConnected }: { remember: boolean; onConnected: () => void }) {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const handled = useRef(false);
   const exchange = useMutation({
-    mutationFn: ({ code, verifier }: { code: string; verifier: string }) => authApi.openrouterExchange(code, verifier),
+    mutationFn: ({ code, verifier, keep }: { code: string; verifier: string; keep: boolean }) =>
+      authApi.openrouterExchange(code, verifier, keep),
   });
 
   // Back from OpenRouter's login page with ?openrouter=1&code=...
@@ -162,10 +163,8 @@ function OpenRouterCard({ remember, onConnected }: { remember: boolean; onConnec
     sessionStorage.removeItem(OPENROUTER_PENDING);
     navigate("/settings", { replace: true }); // drop the one-time code from the address bar
     if (!pending) return;
-    exchange.mutate(
-      { code, verifier: pending.verifier },
-      { onSuccess: ({ key }) => onConnected(key, pending.remember) },
-    );
+    // The backend swaps the code for a key and saves it encrypted; the browser never sees the key.
+    exchange.mutate({ code, verifier: pending.verifier, keep: pending.remember }, { onSuccess: () => onConnected() });
   }, [params, navigate, exchange, onConnected]);
 
   return (
@@ -176,7 +175,8 @@ function OpenRouterCard({ remember, onConnected }: { remember: boolean; onConnec
       </p>
       {exchange.isSuccess && (
         <p className="flex items-center gap-2 text-sm">
-          <CheckCircle2 className="size-4 text-pos" aria-hidden /> Connected. Choose a model below and save.
+          <CheckCircle2 className="size-4 text-pos" aria-hidden /> Connected. Key {exchange.data.hint} saved encrypted. Choose a
+          model below and save.
         </p>
       )}
       {exchange.isError && <Notice tone="error" title="Couldn't connect OpenRouter">{exchange.error.message}</Notice>}
@@ -192,11 +192,11 @@ function OpenRouterCard({ remember, onConnected }: { remember: boolean; onConnec
 export function QuickConnect({
   remember,
   onUseChatGPT,
-  onOpenRouterKey,
+  onOpenRouterConnected,
 }: {
   remember: boolean;
   onUseChatGPT: (model: string) => void;
-  onOpenRouterKey: (key: string, remember: boolean) => void;
+  onOpenRouterConnected: () => void;
 }) {
   return (
     <section aria-labelledby="quick-connect" className="flex flex-col gap-3">
@@ -205,7 +205,7 @@ export function QuickConnect({
       </h2>
       <div className="grid gap-3 md:grid-cols-2">
         <ChatGPTCard onUse={onUseChatGPT} />
-        <OpenRouterCard remember={remember} onConnected={onOpenRouterKey} />
+        <OpenRouterCard remember={remember} onConnected={onOpenRouterConnected} />
       </div>
       <p className="text-sm text-muted">
         Already pay for Claude or ChatGPT?{" "}

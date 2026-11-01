@@ -16,6 +16,10 @@ class Settings:
     llm_concurrency: int = 4
     max_reviews_per_run: int = 2000
     web_dist: Path = ROOT_DIR / "web" / "dist"  # built frontend, served when present
+    # Host names this server answers to (DNS-rebinding protection). Add a tunnel's host via MCP_ALLOWED_HOSTS.
+    allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost", "::1")
+    # None = use the OS keychain when available (set REVIEW_INSIGHTS_KEYCHAIN=off to disable)
+    use_keychain: bool | None = None
     cors_origins: tuple[str, ...] = field(default=("http://localhost:5173", "http://127.0.0.1:5173"))
 
     @property

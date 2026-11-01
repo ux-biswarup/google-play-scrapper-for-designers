@@ -101,15 +101,24 @@ PROVIDERS: dict[str, ProviderSpec] = {
 }
 
 
+def saved_key(provider_id: str) -> str | None:
+    """Key saved in the encrypted vault for this provider (keys never live in the browser)."""
+    from ..services.vault import get_vault
+
+    vault = get_vault()
+    return vault.get(f"provider:{provider_id}") if vault else None
+
+
 def resolve_config(config: LLMConfig) -> LLMConfig:
-    """Fill in the key and model from the environment when the user didn't set them in the interface."""
+    """Fill in the key and model: a key sent with this request (testing before saving), then the encrypted
+    vault, then the environment / .env."""
     spec = PROVIDERS.get(config.provider)
     if spec is None:
         raise LLMError(f"Unknown provider '{config.provider}'.", fatal=True)
     return LLMConfig(
         config.provider,
         config.model or spec.env_model() or "",
-        config.api_key or spec.env_key(),
+        config.api_key or saved_key(spec.id) or spec.env_key(),
         config.base_url,
     )
 
