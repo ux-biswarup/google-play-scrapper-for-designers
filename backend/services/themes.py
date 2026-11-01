@@ -22,22 +22,27 @@ GROUP_SCHEMA = {
                 },
                 "required": ["name", "members"],
             },
-        }
+        },
+        "discard": {"type": "array", "items": {"type": "integer"}},
     },
-    "required": ["themes"],
+    "required": ["themes", "discard"],
 }
 
 _SYSTEM = """You organise app review themes for a product design team.
-Group the numbered labels into at most {max_themes} themes. Merge labels that describe the same
-underlying problem or praise; keep genuinely different issues apart. Name each theme with a clear
-2-5 word lowercase {language} label a designer would put on a sticky note. Every label number must
-appear in exactly one theme."""
+Group the numbered labels into at most {max_themes} themes. Merge labels about the same part of the
+product; keep genuinely different subjects apart. Name each theme with a clear 2-5 word lowercase
+{language} label naming the subject (e.g. "account bans", "ads frequency", "login after update"), never
+a feeling: the same theme can be praised by some reviews and criticised by others.
+Put labels that only express a feeling or are too vague to act on ("bad experience", "negative reviews",
+"positive experience", "good game", "app quality") in "discard" instead of a theme.
+Every label number must appear exactly once: in one theme or in discard."""
 
 
 async def build_theme_map(
     provider: LLMProvider, label_counts: Counter, *, output_language: str = "English"
 ) -> tuple[dict[str, str], Usage, str | None]:
-    """Return (raw label -> theme, usage, warning). Falls back to identity mapping if the model call fails."""
+    """Return (raw label -> theme, usage, warning). An empty theme means the label was discarded as too vague.
+    Falls back to the identity mapping if the model call fails."""
     identity = {label: label for label in label_counts}
     if len(label_counts) < 2:
         return identity, Usage(), None
@@ -55,6 +60,13 @@ async def build_theme_map(
         return identity, Usage(), f"Theme grouping skipped: {exc}"
 
     mapping = dict(identity)
+    for member in data.get("discard") or []:
+        try:
+            index = int(member)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= index < len(labels):
+            mapping[labels[index]] = ""  # too vague to act on: hidden from themes
     for theme in data.get("themes") or []:
         if not isinstance(theme, dict):
             continue

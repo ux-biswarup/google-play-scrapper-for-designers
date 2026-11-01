@@ -127,6 +127,7 @@ class AnalysisPipeline:
                 provider, todo,
                 batch_size=self.settings.batch_size, concurrency=self.settings.llm_concurrency,
                 output_language=run.output_language, on_batch_done=on_batch, cancel=cancel,
+                app_context=" ".join(filter(None, [details.title, f"({details.genre})" if details.genre else ""])),
             )
             self._check(cancel)
             if todo and outcome.failed >= len(todo):

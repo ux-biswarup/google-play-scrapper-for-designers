@@ -194,3 +194,15 @@ def test_provider_message_extracts_reason():
 
     assert provider_message(FakeAPIError("Error code: 400 - {...}")) == "Your credit balance is too low"
     assert provider_message(ValueError("plain   message")) == "plain message"
+
+
+def test_build_theme_map_discards_vague_labels():
+    from collections import Counter
+
+    class Discarding(FakeProvider):
+        async def complete_json(self, *, system, prompt, schema, max_tokens=8000):
+            return {"themes": [{"name": "account bans", "members": [0]}], "discard": [1, 99, "x"]}, Usage()
+
+    counts = Counter({"ban without reason": 4, "bad experience": 3})
+    mapping, _usage, _warning = asyncio.run(build_theme_map(Discarding({}), counts))
+    assert mapping == {"ban without reason": "account bans", "bad experience": ""}

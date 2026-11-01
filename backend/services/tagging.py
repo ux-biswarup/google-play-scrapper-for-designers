@@ -46,9 +46,13 @@ For every review return exactly one result with the same id:
 - category: bug (something broken, crashes, errors), feature_request (asks for something new),
   ux_friction (confusing, hard to use, too many steps), complaint (unhappy with pricing, ads, policy,
   content or service, but nothing is broken), praise, question, or other.
-- themes: 0-{max_themes} short, specific, reusable labels of 2-4 words in lowercase {language},
-  naming the subject of the feedback (e.g. "login fails after update", "too many ads", "battery drain").
-  Prefer the same wording for the same issue across reviews. Use [] when the review has no real content.
+- themes: 0-{max_themes} labels of 2-4 words in lowercase {language}. Each label names a concrete part of
+  the product the reviewer talks about: a feature, flow, policy, content or quality attribute
+  (e.g. "login after update", "ads frequency", "battery usage", "account bans", "map loading").
+  Name the subject, not the feeling: never use sentiment words or catch-alls such as "bad experience",
+  "negative review", "positive experience", "good app", "overall satisfaction" or "app quality".
+  If the review only expresses a feeling without saying what about ("worst", "love it", "great game"),
+  return []. Prefer the same wording for the same subject across reviews.
 - journey_stage: where in the user journey the feedback belongs.
 - emotion: the reviewer's dominant emotion."""
 
@@ -102,16 +106,19 @@ def _coerce(item: dict) -> TagResult:
     )
 
 
-def build_prompt(batch: Sequence[ReviewInput]) -> str:
+def build_prompt(batch: Sequence[ReviewInput], app_context: str = "") -> str:
     payload = [{"id": str(i), "rating": r.rating, "text": r.text[:MAX_REVIEW_CHARS]} for i, r in enumerate(batch)]
-    return "Tag these reviews.\nREVIEWS:\n" + json.dumps(payload, ensure_ascii=False)
+    about = f" of {app_context}" if app_context else ""
+    return f"Tag these reviews{about}.\nREVIEWS:\n" + json.dumps(payload, ensure_ascii=False)
 
 
 async def tag_batch(
-    provider: LLMProvider, batch: Sequence[ReviewInput], *, output_language: str = "English"
+    provider: LLMProvider, batch: Sequence[ReviewInput], *, output_language: str = "English", app_context: str = ""
 ) -> tuple[dict[int, TagResult], Usage]:
     system = _SYSTEM.format(max_themes=MAX_THEMES_PER_REVIEW, language=output_language)
-    data, usage = await provider.complete_json(system=system, prompt=build_prompt(batch), schema=TAG_SCHEMA)
+    data, usage = await provider.complete_json(
+        system=system, prompt=build_prompt(batch, app_context), schema=TAG_SCHEMA
+    )
     results: dict[int, TagResult] = {}
     for item in data.get("results") or []:
         if not isinstance(item, dict):
@@ -132,6 +139,7 @@ async def tag_reviews(
     batch_size: int = 25,
     concurrency: int = 4,
     output_language: str = "English",
+    app_context: str = "",
     on_batch_done: BatchDoneFn | None = None,
     cancel: asyncio.Event | None = None,
 ) -> TagOutcome:
@@ -153,7 +161,9 @@ async def tag_reviews(
             if fatal or (cancel and cancel.is_set()):
                 return
             try:
-                results, usage = await tag_batch(provider, batch, output_language=output_language)
+                results, usage = await tag_batch(
+                    provider, batch, output_language=output_language, app_context=app_context
+                )
             except LLMError as exc:
                 if exc.fatal:
                     fatal.append(exc)

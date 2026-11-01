@@ -74,7 +74,7 @@ def load_run_frame(db: Database, run_id: str, cache: FrameCache | None = None) -
         themes: list[str] = []
         for label in r.themes or []:
             canonical = theme_map.get(label, label)
-            if canonical not in themes:
+            if canonical and canonical not in themes:  # "" = discarded as too vague
                 themes.append(canonical)
         records.append({
             "review_id": r.store_review_id,

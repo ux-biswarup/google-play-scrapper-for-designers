@@ -10,9 +10,11 @@ from .metrics import MetricsQuery, apply_filters, run_query
 
 IMPACT_FORMULA = (
     "impact = 100 × reach × negativity × momentum. Reach: share of all reviews mentioning the theme. "
-    "Negativity: share of those reviews rated 1-2 stars. Momentum (0.5-2.0): how much the theme's share "
-    "grew in the newer half of the period compared with the older half."
+    "Negativity: share of those reviews rated 1-2 stars. Momentum (0.75-1.5): how much the theme's share "
+    "grew in the newer half of the period compared with the older half; 1.0 for themes with fewer than "
+    "5 mentions, where growth is too noisy to trust."
 )
+MIN_MENTIONS_FOR_MOMENTUM = 5
 SORTS = {
     "newest": ("date", False),
     "oldest": ("date", True),
@@ -72,12 +74,12 @@ def overview(df: pd.DataFrame) -> dict:
 
 
 def _momentum(recent: int, recent_total: int, prior: int, prior_total: int) -> tuple[float, float, str]:
-    if not recent_total or not prior_total:
+    if not recent_total or not prior_total or recent + prior < MIN_MENTIONS_FOR_MOMENTUM:
         return 1.0, 0.0, "steady"
     recent_rate, prior_rate = recent / recent_total, prior / prior_total
     growth = (recent_rate - prior_rate) / prior_rate if prior_rate else (1.0 if recent_rate else 0.0)
     trend = "rising" if growth > 0.25 else "falling" if growth < -0.25 else "steady"
-    return 1.0 + min(max(growth, -0.5), 1.0), round(growth, 4), trend
+    return 1.0 + min(max(growth, -0.25), 0.5), round(growth, 4), trend
 
 
 def _quotes(g: pd.DataFrame, worst_first: bool, n: int) -> list[dict]:
