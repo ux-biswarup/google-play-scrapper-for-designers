@@ -90,6 +90,23 @@ def test_chats_never_share_context(client, llm_calls):
     assert listed["suggestions"][0] == "Why are users unhappy about login problems?"
 
 
+def test_search_chat_history(client):
+    run_id, other_run = _finished_run(client), _finished_run(client)
+    login = _new_chat(client, run_id)
+    _ask(client, run_id, login, "What hurts most?")  # the fake answer says "The biggest problem is login."
+    other = _new_chat(client, run_id)
+    _ask(client, run_id, other, "Anything about dark mode?")
+    _ask(client, other_run, _new_chat(client, other_run), "What hurts most?")
+
+    search = lambda q, rid=run_id: client.get(f"/api/runs/{rid}/chat/sessions", params={"q": q}).json()["sessions"]  # noqa: E731
+    assert [(c["id"], c["snippet"]) for c in search("HURTS")] == [(login, None)]  # title match, any case
+    by_answer = search("biggest problem")
+    assert {c["id"] for c in by_answer} == {login, other}  # found in the answers
+    assert all("biggest problem is login" in c["snippet"] and "[[r:" not in c["snippet"] for c in by_answer)
+    assert search("nothing like this") == []
+    assert len(search("hurts", other_run)) == 1  # only that analysis's own chats
+
+
 def test_rename_and_delete_chats(client):
     run_id = _finished_run(client)
     chat_id = _new_chat(client, run_id)
@@ -191,3 +208,22 @@ def test_mcp_connection_details(client):
     info = client.get("/api/connect/mcp").json()
     assert info["http_url"].endswith("/mcp/")
     assert info["module"] == "backend.mcp_server" and len(info["tools"]) == len(TOOLS)
+
+
+def test_long_tool_results_stay_valid_json():
+    from backend.assistant.agent import fit_json
+
+    big = {"items": [{"review_id": f"r{i}", "text": "word " * 200} for i in range(300)], "total": 300}
+    text = fit_json(big, limit=12_000)
+    data = json.loads(text)  # never cut mid-way
+    assert len(text) <= 12_000 and data["total"] == 300 and "note" in data
+    assert 1 <= len(data["items"]) <= 12 and data["items"][0]["review_id"] == "r0"
+    assert fit_json({"a": 1}) == '{"a": 1}'
+
+
+def test_reviews_are_recovered_from_results_cut_by_older_versions():
+    from backend.api.chat import _reviews_in
+
+    whole = json.dumps({"quotes": [{"review_id": "a", "text": "one"}, {"review_id": "b", "text": "two"}]})
+    assert set(_reviews_in(whole[:-20])) == {"a"}  # "b" was cut off, "a" is complete
+    assert set(_reviews_in(whole)) == {"a", "b"}

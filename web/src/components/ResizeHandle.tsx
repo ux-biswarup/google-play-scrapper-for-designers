@@ -41,6 +41,7 @@ export function ResizeHandle({
   max,
   onReset,
   label,
+  onDragging,
 }: {
   width: number;
   onResize: (width: number) => void;
@@ -48,6 +49,8 @@ export function ResizeHandle({
   max: number;
   onReset: () => void;
   label: string;
+  /** Lets the panel pause its open/close animation while the user drags. */
+  onDragging?: (dragging: boolean) => void;
 }) {
   const start = useRef<{ x: number; width: number } | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -58,6 +61,7 @@ export function ResizeHandle({
     e.currentTarget.setPointerCapture(e.pointerId);
     start.current = { x: e.clientX, width };
     setDragging(true);
+    onDragging?.(true);
     // Keep the resize cursor and stop text selection while dragging over the page.
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
@@ -68,8 +72,10 @@ export function ResizeHandle({
     onResize(start.current.width + (start.current.x - e.clientX));
   };
   const end = () => {
+    if (!start.current) return;
     start.current = null;
     setDragging(false);
+    onDragging?.(false);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
   };
@@ -99,7 +105,7 @@ export function ResizeHandle({
       onLostPointerCapture={end}
       onDoubleClick={onReset}
       onKeyDown={onKeyDown}
-      className="group absolute inset-y-0 -left-1.5 z-10 hidden w-3 cursor-col-resize touch-none justify-center focus-visible:outline-none lg:flex"
+      className="group absolute inset-y-0 left-0 z-30 hidden w-2 cursor-col-resize touch-none focus-visible:outline-none lg:flex"
     >
       <span
         aria-hidden

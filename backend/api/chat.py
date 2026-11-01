@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -173,6 +174,22 @@ def _system_prompt(ctx: AppContext, run: Run) -> str:
     )
 
 
+def _reviews_in(content: str) -> dict[str, dict]:
+    """Reviews in a saved tool result. Older versions cut long results mid-way; recover every complete review."""
+    try:
+        return collect_reviews(json.loads(content))
+    except json.JSONDecodeError:
+        decoder, found, at = json.JSONDecoder(), {}, content.find('{"review_id"')
+        while at >= 0:
+            try:
+                value, end = decoder.raw_decode(content, at)
+                collect_reviews(value, found)
+            except json.JSONDecodeError:
+                end = at + 1
+            at = content.find('{"review_id"', end)
+        return found
+
+
 def transcript(history: list[ChatMessage]) -> list[dict]:
     """Group stored messages into turns for display: user text, and assistant text with the steps it took."""
     turns: list[dict] = []
@@ -192,17 +209,32 @@ def transcript(history: list[ChatMessage]) -> list[dict]:
                 labels[call.id] = step_label(call.name, call.arguments)
                 turn["steps"].append({"id": call.id, "label": labels[call.id], "ok": True})
         elif m.role == "tool":
-            try:
-                turn["reviews"].update(collect_reviews(json.loads(m.content)))
-            except json.JSONDecodeError:
-                pass
+            turn["reviews"].update(_reviews_in(m.content))
     return turns
 
 
+_CITE = re.compile(r"\[\[r:[^\]]*\]\]")
+SNIPPET_CHARS = 90
+
+
+def snippet(text: str, query: str) -> str | None:
+    """A short excerpt of text around the first match of query (case-insensitive), or None."""
+    clean = " ".join(_CITE.sub("", text).split())
+    at = clean.lower().find(query)
+    if at < 0:
+        return None
+    start = max(0, at - 30)
+    end = min(len(clean), start + SNIPPET_CHARS)
+    return ("…" if start else "") + clean[start:end].strip() + ("…" if end < len(clean) else "")
+
+
 @router.get("/sessions")
-def list_sessions(run_id: str, ctx: AppContext = Depends(get_ctx)) -> dict:
+def list_sessions(run_id: str, q: str | None = None, ctx: AppContext = Depends(get_ctx)) -> dict:
+    """This analysis's chats, most recent first. With q, only chats whose title, questions or answers mention it;
+    a match inside the conversation comes with a snippet."""
     _completed_run(ctx, run_id)
     _adopt_orphans(ctx, run_id)
+    query = " ".join((q or "").split()).lower()[:200]
     with ctx.db.session() as s:
         counts = dict(
             s.execute(
@@ -214,10 +246,28 @@ def list_sessions(run_id: str, ctx: AppContext = Depends(get_ctx)) -> dict:
         chats = s.scalars(
             select(ChatSession).where(ChatSession.run_id == run_id).order_by(ChatSession.updated_at.desc())
         ).all()
-    return {
-        "sessions": [_session_out(c, counts.get(c.id, 0)) for c in chats],
-        "suggestions": _suggestions(ctx, run_id),
-    }
+        texts: dict[str, list[str]] = {}
+        if query:
+            rows = s.execute(
+                select(ChatEntry.session_id, ChatEntry.content)
+                .where(ChatEntry.run_id == run_id, ChatEntry.role.in_(("user", "assistant")))
+                .order_by(ChatEntry.id)
+            ).all()
+            for session_id, content in rows:
+                texts.setdefault(session_id, []).append(content or "")
+    out = []
+    for chat in chats:
+        item = _session_out(chat, counts.get(chat.id, 0))
+        if query:
+            if query in chat.title.lower():
+                item["snippet"] = None
+            else:
+                found = next((m for t in texts.get(chat.id, []) if (m := snippet(t, query))), None)
+                if found is None:
+                    continue
+                item["snippet"] = found
+        out.append(item)
+    return {"sessions": out, "suggestions": _suggestions(ctx, run_id)}
 
 
 @router.post("/sessions", status_code=201)

@@ -339,8 +339,10 @@ export type ChatEvent =
 export type ChatSession = { id: string; title: string; questions: number; created_at: string; updated_at: string };
 
 export const chatApi = {
-  sessions: (runId: string) =>
-    request<{ sessions: ChatSession[]; suggestions: string[] }>(`/runs/${runId}/chat/sessions`),
+  sessions: (runId: string, q?: string) =>
+    request<{ sessions: (ChatSession & { snippet?: string | null })[]; suggestions: string[] }>(
+      `/runs/${runId}/chat/sessions${query({ q })}`,
+    ),
   create: (runId: string) => request<ChatSession>(`/runs/${runId}/chat/sessions`, { method: "POST" }),
   get: (runId: string, sessionId: string) =>
     request<ChatSession & { turns: ChatTurn[] }>(`/runs/${runId}/chat/sessions/${sessionId}`),

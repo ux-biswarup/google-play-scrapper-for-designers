@@ -220,6 +220,9 @@ function Dashboard({ run }: { run: Run }) {
   const legacy = run.provider === "legacy";
   const [chatOpen, setChatOpen] = useState(() => localStorage.getItem("ri.chat-open") === "1");
   const [chatWidth, setChatWidth, chatLimits] = usePanelWidth("ri.chat-width");
+  const [resizing, setResizing] = useState(false);
+  const [chatMounted, setChatMounted] = useState(chatOpen);
+  if (chatOpen && !chatMounted) setChatMounted(true);
   const toggleChat = (open: boolean) => {
     localStorage.setItem("ri.chat-open", open ? "1" : "0");
     setChatOpen(open);
@@ -323,23 +326,34 @@ function Dashboard({ run }: { run: Run }) {
       </div>
     </div>
     </div>
-    {chatOpen && (
-      <div
-        style={{ "--chat-width": `${chatWidth}px` } as CSSProperties}
-        className="fixed inset-0 z-40 lg:relative lg:inset-auto lg:z-auto lg:w-(--chat-width) lg:shrink-0 lg:border-l lg:border-line print:hidden"
-      >
-        <ResizeHandle
-          label="Resize assistant"
-          width={chatWidth}
-          onResize={setChatWidth}
-          min={chatLimits.min}
-          max={chatLimits.max}
-          onReset={chatLimits.reset}
-        />
-        {/* Keyed by analysis: switching apps starts the assistant fresh, with that analysis's own chats. */}
-        <ChatPanel key={run.id} run={run} onClose={() => toggleChat(false)} />
-      </div>
-    )}
+    {/* Opens and closes with the same width slide as the left navigation. The inner box keeps the full width,
+        so the content slides in instead of squeezing. Mounted on first open, then kept so chats survive closing. */}
+    <div
+      inert={!chatOpen}
+      aria-hidden={!chatOpen}
+      style={{ "--chat-width": `${chatWidth}px` } as CSSProperties}
+      className={cx(
+        "fixed inset-0 z-40 transition-[transform,width] duration-200 ease-out motion-reduce:transition-none lg:relative lg:inset-auto lg:z-auto lg:shrink-0 lg:translate-x-0 lg:overflow-hidden print:hidden",
+        chatOpen ? "translate-x-0 lg:w-(--chat-width)" : "pointer-events-none translate-x-full lg:w-0",
+        resizing && "transition-none",
+      )}
+    >
+      {chatMounted && (
+        <div className={cx("relative h-full lg:w-(--chat-width)", chatOpen && "lg:border-l lg:border-line")}>
+          <ResizeHandle
+            label="Resize assistant"
+            width={chatWidth}
+            onResize={setChatWidth}
+            min={chatLimits.min}
+            max={chatLimits.max}
+            onReset={chatLimits.reset}
+            onDragging={setResizing}
+          />
+          {/* Keyed by analysis: switching apps starts the assistant fresh, with that analysis's own chats. */}
+          <ChatPanel key={run.id} run={run} onClose={() => toggleChat(false)} />
+        </div>
+      )}
+    </div>
     </div>
     </PinProvider>
   );

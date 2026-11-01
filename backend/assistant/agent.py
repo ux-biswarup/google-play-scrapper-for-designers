@@ -77,6 +77,32 @@ def step_label(name: str, args: dict[str, Any]) -> str:
     }.get(name, name.replace("_", " ").capitalize())
 
 
+def _shrink(value: Any, keep: int, chars: int) -> Any:
+    if isinstance(value, dict):
+        return {k: _shrink(v, keep, chars) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_shrink(v, keep, chars) for v in value[:keep]]
+    if isinstance(value, str) and len(value) > chars:
+        return value[:chars].rstrip() + "…"
+    return value
+
+
+def fit_json(value: Any, limit: int = MAX_TOOL_CHARS) -> str:
+    """A tool result as JSON under limit characters. Long lists and texts are shortened step by step instead of
+    cutting the text, so the model, the saved chat and the citations always get valid JSON."""
+    text = json.dumps(value, default=str, ensure_ascii=False)
+    keep, chars = 12, 400
+    while len(text) > limit and keep >= 1:
+        shrunk = _shrink(value, keep, chars)
+        if isinstance(shrunk, dict):
+            shrunk["note"] = "Shortened to fit. Ask for fewer items or a narrower filter to see more."
+        text = json.dumps(shrunk, default=str, ensure_ascii=False)
+        keep, chars = keep // 2, max(80, chars * 2 // 3)
+    if len(text) > limit:
+        return json.dumps({"error": "That result was too large. Ask for fewer items or a narrower filter."})
+    return text
+
+
 def collect_reviews(value: Any, found: dict[str, dict] | None = None) -> dict[str, dict]:
     """Find review objects in a tool result so the interface can show cited reviews."""
     found = {} if found is None else found
@@ -125,8 +151,10 @@ async def run_agent(
             yield {"type": "tool", "id": call.id, "name": call.name, "label": label}
             try:
                 result = await asyncio.to_thread(run_tool, ctx, call.name, {**call.arguments, "run_id": run_id})
-                content = json.dumps(result, default=str, ensure_ascii=False)[:MAX_TOOL_CHARS]
-                yield {"type": "tool_result", "id": call.id, "ok": True, "reviews": collect_reviews(result)}
+                content = fit_json(result)
+                # Cite only what the model actually saw (the result may have been shortened).
+                seen = collect_reviews(json.loads(content))
+                yield {"type": "tool_result", "id": call.id, "ok": True, "reviews": seen}
             except (ValueError, TypeError) as exc:  # bad arguments from the model: tell it, let it retry
                 content = json.dumps({"error": str(exc)})
                 yield {"type": "tool_result", "id": call.id, "ok": False, "reviews": {}}

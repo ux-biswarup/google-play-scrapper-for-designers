@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -9,9 +9,9 @@ import {
   Copy,
   History,
   Loader2,
-  MessageSquare,
   Pencil,
   RotateCcw,
+  Search,
   ScanSearch,
   Square,
   SquarePen,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { chatApi, type ChatEvent, type ChatSession, type ChatTurn, type CitedReview, type Run } from "../lib/api";
 import { relativeTime, shortDate } from "../lib/format";
+import { highlightParts } from "../lib/runSearch";
 import { toLLMConfig, useConnection } from "../lib/settings";
 import { Notice, Stars, cx } from "./ui";
 
@@ -264,26 +265,76 @@ function useTabs(runId: string, sessions: ChatSession[] | undefined) {
   return { tabs, activate, close, replace };
 }
 
-// ---- history -----------------------------------------------------------------------------------
+// ---- history drawer ----------------------------------------------------------------------------
 
-function HistoryView({
+type Listed = ChatSession & { snippet?: string | null };
+
+const DAY = 86_400_000;
+function dateGroup(iso: string, now = new Date()): string {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const t = new Date(iso).getTime();
+  if (t >= today) return "Today";
+  if (t >= today - DAY) return "Yesterday";
+  if (t >= today - 7 * DAY) return "Previous 7 days";
+  if (t >= today - 30 * DAY) return "Previous 30 days";
+  return "Older";
+}
+
+function Mark({ text, query }: { text: string; query: string }) {
+  return (
+    <>
+      {highlightParts(text, query).map((p, i) =>
+        p.match ? (
+          <mark key={i} className="rounded-sm bg-hl/40 text-ink">
+            {p.text}
+          </mark>
+        ) : (
+          p.text
+        ),
+      )}
+    </>
+  );
+}
+
+/** Slides over the chat from the right: search across titles, questions and answers, grouped by date. */
+function HistoryDrawer({
   runId,
   sessions,
   openIds,
   onOpen,
   onDeleted,
+  onClose,
 }: {
   runId: string;
   sessions: ChatSession[];
   openIds: TabId[];
   onOpen: (id: string) => void;
   onDeleted: (id: string) => void;
+  onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState("");
+  const [query, setQuery] = useState("");
+  const deferred = useDeferredValue(query.trim());
+  const search = useQuery({
+    queryKey: ["chat-sessions", runId, "search", deferred],
+    queryFn: () => chatApi.sessions(runId, deferred),
+    enabled: deferred.length > 0,
+    placeholderData: keepPreviousData,
+  });
   const [editing, setEditing] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const shown = sessions.filter((s) => s.title.toLowerCase().includes(filter.trim().toLowerCase()));
+  const panel = useRef<HTMLDivElement>(null);
+  const searchBox = useRef<HTMLInputElement>(null);
+  useEffect(() => searchBox.current?.focus(), []);
+
+  const shown: Listed[] = deferred ? (search.data?.sessions ?? []) : sessions;
+  const groups: [string, Listed[]][] = [];
+  for (const s of shown) {
+    const g = dateGroup(s.updated_at);
+    const last = groups[groups.length - 1];
+    if (last && last[0] === g) last[1].push(s);
+    else groups.push([g, [s]]);
+  }
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["chat-sessions", runId] });
 
   async function rename(id: string) {
@@ -302,92 +353,191 @@ function HistoryView({
     refresh();
   }
 
+  // Keep keyboard focus inside the drawer while it's open; Esc closes it.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape" && !editing) {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (e.key !== "Tab" || !panel.current) return;
+    const focusable = [...panel.current.querySelectorAll<HTMLElement>("button, input, [tabindex='0']")].filter(
+      (el) => !el.hasAttribute("disabled") && el.offsetParent !== null,
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last?.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first?.focus();
+    }
+  };
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-      <h3 className="px-1 font-semibold">Chat history</h3>
-      <p className="mb-3 px-1 text-xs text-muted">All chats about this analysis. Other analyses have their own.</p>
-      {sessions.length > 6 && (
-        <div className="mb-3 px-1">
-          <label htmlFor="chat-history-filter" className="sr-only">
-            Filter chats
-          </label>
-          <input
-            id="chat-history-filter"
-            type="search"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter chats"
-            className="h-9 w-full rounded-md border border-line bg-paper px-3 text-sm placeholder:text-muted focus:border-ink focus:outline-none"
-          />
+    <div className="absolute inset-0 z-20" onKeyDown={onKeyDown}>
+      <div className="absolute inset-0 animate-[fade-in_200ms_ease-out] bg-ink/20" onClick={onClose} aria-hidden />
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="chat-history-title"
+        className="absolute inset-y-0 right-0 flex w-[min(22rem,92%)] animate-[slide-in-right_200ms_ease-out] flex-col border-l border-line bg-panel shadow-2xl"
+      >
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-line bg-soft pr-1.5 pl-4">
+          <h3 id="chat-history-title" className="text-sm font-semibold">
+            Chat history
+          </h3>
+          <button onClick={onClose} title="Close history (Esc)" className="grid size-7 place-items-center rounded-md text-muted hover:bg-panel hover:text-ink">
+            <X className="size-4" aria-hidden />
+            <span className="sr-only">Close history</span>
+          </button>
         </div>
-      )}
-      {sessions.length === 0 ? (
-        <p className="px-1 py-6 text-center text-sm text-muted">No chats yet. Your conversations about this analysis appear here.</p>
-      ) : shown.length === 0 ? (
-        <p className="px-1 py-6 text-center text-sm text-muted">No chats match “{filter.trim()}”.</p>
-      ) : (
-        <ul className="flex flex-col gap-0.5">
-          {shown.map((s) => (
-            <li key={s.id} className="group flex items-center gap-1 rounded-md hover:bg-soft">
-              {editing === s.id ? (
-                <form
-                  className="flex-1 p-1.5"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    rename(s.id);
-                  }}
-                >
-                  <label htmlFor={`rename-${s.id}`} className="sr-only">
-                    Chat name
-                  </label>
-                  <input
-                    id={`rename-${s.id}`}
-                    autoFocus
-                    value={title}
-                    maxLength={120}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={() => rename(s.id)}
-                    onKeyDown={(e) => e.key === "Escape" && setEditing(null)}
-                    className="h-8 w-full rounded border border-ink bg-paper px-2 text-sm focus:outline-none"
-                  />
-                </form>
-              ) : (
-                <button onClick={() => onOpen(s.id)} className="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-2 text-left">
-                  <MessageSquare className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{s.title}</span>
-                    <span className="block text-xs text-muted">
-                      {relativeTime(s.updated_at)}, {s.questions} {s.questions === 1 ? "question" : "questions"}
-                      {openIds.includes(s.id) && ", open"}
-                    </span>
-                  </span>
-                </button>
-              )}
-              {editing !== s.id && (
-                <div className="flex shrink-0 pr-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-                  <button
-                    onClick={() => {
-                      setTitle(s.title);
-                      setEditing(s.id);
-                    }}
-                    aria-label={`Rename “${s.title}”`}
-                    className="grid size-7 place-items-center rounded text-muted hover:bg-panel hover:text-ink"
-                  >
-                    <Pencil className="size-3.5" aria-hidden />
-                  </button>
-                  <button
-                    onClick={() => remove(s)}
-                    aria-label={`Delete “${s.title}”`}
-                    className="grid size-7 place-items-center rounded text-muted hover:bg-panel hover:text-neg"
-                  >
-                    <Trash2 className="size-3.5" aria-hidden />
-                  </button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+
+        <div className="shrink-0 px-3 pt-3 pb-2">
+          <div role="search" className="relative">
+            <label htmlFor="chat-history-search" className="sr-only">
+              Search chats
+            </label>
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
+            <input
+              ref={searchBox}
+              id="chat-history-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && query) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setQuery("");
+                } else if (e.key === "Enter" && shown[0]) {
+                  e.preventDefault();
+                  onOpen(shown[0].id);
+                }
+              }}
+              placeholder="Search chats and answers"
+              autoComplete="off"
+              spellCheck={false}
+              className="h-9 w-full rounded-lg border border-line bg-paper pr-8 pl-9 text-sm placeholder:text-muted focus:border-ink focus:bg-panel focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  searchBox.current?.focus();
+                }}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 place-items-center rounded text-muted hover:bg-soft hover:text-ink"
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            )}
+          </div>
+          <p className="mt-2 px-1 text-xs text-muted" aria-live="polite">
+            {deferred
+              ? search.isFetching && !search.data
+                ? "Searching…"
+                : `${shown.length} ${shown.length === 1 ? "chat" : "chats"} match`
+              : "Chats about this analysis only. Other analyses have their own."}
+          </p>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+          {sessions.length === 0 ? (
+            <p className="px-3 py-8 text-center text-sm text-muted">No chats yet. Your conversations about this analysis appear here.</p>
+          ) : deferred && search.data && shown.length === 0 ? (
+            <div className="px-3 py-8 text-center text-sm">
+              <p>No chats mention “{deferred}”.</p>
+              <button onClick={() => setQuery("")} className="mt-2 font-medium underline underline-offset-2 hover:text-muted">
+                Clear search
+              </button>
+            </div>
+          ) : (
+            groups.map(([group, items]) => (
+              <section key={group} aria-label={group} className="mt-2 first:mt-0">
+                <h4 className="px-3 pt-2 pb-1 text-xs font-medium text-muted">{group}</h4>
+                <ul className="flex flex-col">
+                  {items.map((s) => (
+                    <li key={s.id} className="group flex items-center gap-1 rounded-md hover:bg-soft">
+                      {editing === s.id ? (
+                        <form
+                          className="flex-1 p-1.5"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            rename(s.id);
+                          }}
+                        >
+                          <label htmlFor={`rename-${s.id}`} className="sr-only">
+                            Chat name
+                          </label>
+                          <input
+                            id={`rename-${s.id}`}
+                            autoFocus
+                            value={title}
+                            maxLength={120}
+                            onChange={(e) => setTitle(e.target.value)}
+                            onBlur={() => rename(s.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") {
+                                e.stopPropagation();
+                                setEditing(null);
+                              }
+                            }}
+                            className="h-8 w-full rounded border border-ink bg-paper px-2 text-sm focus:outline-none"
+                          />
+                        </form>
+                      ) : (
+                        <button onClick={() => onOpen(s.id)} className="flex min-w-0 flex-1 flex-col px-3 py-2 text-left">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-medium">
+                              <Mark text={s.title} query={deferred} />
+                            </span>
+                            {openIds.includes(s.id) && (
+                              <span className="shrink-0 rounded-full bg-soft px-1.5 text-[10px] font-medium text-muted group-hover:bg-panel">Open</span>
+                            )}
+                          </span>
+                          {s.snippet && (
+                            <span className="mt-0.5 line-clamp-2 text-xs text-muted">
+                              <Mark text={s.snippet} query={deferred} />
+                            </span>
+                          )}
+                          <span className="mt-0.5 text-xs text-muted">
+                            {relativeTime(s.updated_at)}, {s.questions} {s.questions === 1 ? "question" : "questions"}
+                          </span>
+                        </button>
+                      )}
+                      {editing !== s.id && (
+                        <div className="flex shrink-0 pr-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+                          <button
+                            onClick={() => {
+                              setTitle(s.title);
+                              setEditing(s.id);
+                            }}
+                            aria-label={`Rename “${s.title}”`}
+                            className="grid size-7 place-items-center rounded text-muted hover:bg-panel hover:text-ink"
+                          >
+                            <Pencil className="size-3.5" aria-hidden />
+                          </button>
+                          <button
+                            onClick={() => remove(s)}
+                            aria-label={`Delete “${s.title}”`}
+                            className="grid size-7 place-items-center rounded text-muted hover:bg-panel hover:text-neg"
+                          >
+                            <Trash2 className="size-3.5" aria-hidden />
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -402,7 +552,12 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
   const sessions = list.data?.sessions;
   const { tabs, activate, close, replace } = useTabs(run.id, sessions);
   const active = tabs.active;
-  const [view, setView] = useState<"chat" | "history">("chat");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyButton = useRef<HTMLButtonElement>(null);
+  const closeHistory = () => {
+    setHistoryOpen(false);
+    historyButton.current?.focus();
+  };
 
   // Per-tab state, so replies keep streaming and drafts survive while you look at another tab.
   const [drafts, setDrafts] = useState<Record<TabId, string>>({});
@@ -447,13 +602,13 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
     return () => controllers.forEach((c) => c.abort());
   }, []);
   useEffect(() => {
-    if (view === "chat") input.current?.focus();
-  }, [active, view]);
+    input.current?.focus();
+  }, [active]);
 
   const setDraft = (id: TabId, text: string) => setDrafts((d) => ({ ...d, [id]: text }));
 
   function newChat() {
-    setView("chat");
+    setHistoryOpen(false);
     // Reuse an empty new chat instead of piling up blank tabs.
     const blank = tabs.open.find((id) => isNew(id) && !pending[id]?.length);
     activate(blank ?? newTabId());
@@ -527,7 +682,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
   const over = draft.length > MAX_CHARS;
 
   return (
-    <aside aria-label={`Assistant for ${appName}`} className="flex h-full flex-col bg-panel">
+    <aside aria-label={`Assistant for ${appName}`} className="relative flex h-full flex-col bg-panel">
       {/* One row on a tinted ribbon: open chats as compact tags (the active one is white like the chat below),
           then New chat, History and Close. */}
       <header className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-soft pl-1.5">
@@ -539,7 +694,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,black_6px,black_calc(100%-10px),transparent)]"
         >
           {tabs.open.map((id) => {
-            const selected = id === active && view === "chat";
+            const selected = id === active;
             return (
               <div
                 key={id}
@@ -558,10 +713,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                   role="tab"
                   aria-selected={selected}
                   tabIndex={id === active ? 0 : -1}
-                  onClick={() => {
-                    activate(id);
-                    setView("chat");
-                  }}
+                  onClick={() => activate(id)}
                   title={titleOf(id)}
                   className="flex h-full min-w-0 items-center gap-1.5 rounded-md pr-0.5 pl-2.5 focus-visible:outline-offset-0"
                 >
@@ -589,12 +741,14 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
             <span className="sr-only">New chat</span>
           </button>
           <button
-            onClick={() => setView((v) => (v === "history" ? "chat" : "history"))}
-            aria-pressed={view === "history"}
+            ref={historyButton}
+            onClick={() => (historyOpen ? closeHistory() : setHistoryOpen(true))}
+            aria-haspopup="dialog"
+            aria-expanded={historyOpen}
             title="Chat history"
             className={cx(
               "grid size-7 place-items-center rounded-md text-muted hover:bg-panel hover:text-ink",
-              view === "history" && "bg-panel text-ink shadow-sm ring-1 ring-line",
+              historyOpen && "bg-panel text-ink shadow-sm ring-1 ring-line",
             )}
           >
             <History className="size-4" aria-hidden />
@@ -607,19 +761,21 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
         </div>
       </header>
 
-      {view === "history" ? (
-        <HistoryView
+      {historyOpen && (
+        <HistoryDrawer
           runId={run.id}
           sessions={sessions ?? []}
           openIds={tabs.open}
           onOpen={(id) => {
             activate(id);
-            setView("chat");
+            setHistoryOpen(false);
           }}
           onDeleted={close}
+          onClose={closeHistory}
         />
-      ) : (
-        <>
+      )}
+
+      <>
           <div role="tabpanel" aria-label={titleOf(active)} className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-live="polite">
             {!isNew(active) && chat.isLoading ? (
               <Loader2 className="size-4 animate-spin text-muted" aria-label="Loading" />
@@ -754,8 +910,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
               </p>
             )}
           </form>
-        </>
-      )}
+      </>
     </aside>
   );
 }
