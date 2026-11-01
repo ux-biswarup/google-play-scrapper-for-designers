@@ -220,6 +220,12 @@ function Dashboard({ run }: { run: Run }) {
             )}
             <span>{plural(run.review_count, "review")}</span>
             <span>{ratingFilterLabel(run.ratings)}</span>
+            {(run.date_from || run.date_to) && (
+              <span>
+                {shortDate(run.date_from)} to {shortDate(run.date_to)}
+                {run.sampling === "spread" ? ", spread" : ""}
+              </span>
+            )}
             <span>{legacy ? "Imported from the previous version" : `Analyzed by ${run.model}`}</span>
             <span>{shortDate(run.created_at)}</span>
           </p>

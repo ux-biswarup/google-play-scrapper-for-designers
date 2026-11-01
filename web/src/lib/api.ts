@@ -63,6 +63,9 @@ export type Run = {
   lang: string | null;
   ratings: number[] | null;
   requested_count: number;
+  date_from: string | null;
+  date_to: string | null;
+  sampling: "newest" | "spread";
   output_language: string;
   provider: string;
   model: string;
@@ -87,6 +90,19 @@ export type RunCreate = {
   ratings: number[] | null;
   output_language: string;
   llm: LLMConfig;
+  date_from?: string | null;
+  date_to?: string | null;
+  sampling?: "newest" | "spread";
+};
+
+export type ReviewWindow = {
+  in_range: number;
+  complete: boolean;
+  scanned: number;
+  max_scan: number;
+  oldest_reached: string | null;
+  first_review: string | null;
+  last_review: string | null;
 };
 
 export type Estimate = { reviews: number; ai_requests: number; input_tokens: number; output_tokens: number; seconds: number };
@@ -270,7 +286,9 @@ export const api = {
   lookupApp: (id: string, country: string, lang: string) =>
     request<AppDetails>(`/apps/lookup${query({ id, country, lang })}`),
 
-  estimate: (count: number) => request<Estimate>("/runs/estimate", post({ count })),
+  estimate: (count: number) => request<Estimate>("/runs/estimate", post({ count: Math.max(10, count) })),
+  reviewWindow: (body: { app: string; country: string; lang: string; ratings: number[] | null; date_from: string; date_to: string }) =>
+    request<ReviewWindow>("/apps/review-window", post(body)),
   createRun: (body: RunCreate) => request<Run>("/runs", post(body)),
   runs: () => request<Run[]>("/runs"),
   run: (id: string) => request<Run>(`/runs/${id}`),

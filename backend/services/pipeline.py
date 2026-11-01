@@ -8,6 +8,7 @@ import uuid
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy import select, update
 
@@ -15,7 +16,15 @@ from ..config import Settings
 from ..db import Database, utcnow
 from ..models import TAG_VERSION, App, Insight, Review, Run, RunReview, RunStatus
 from ..providers import LLMConfig, LLMError, LLMProvider, Usage
-from .play_store import AppDetails, AppNotFound, PlayStoreClient, StoreReview
+from .play_store import (
+    AppDetails,
+    AppNotFound,
+    PlayStoreClient,
+    ReviewWindow,
+    StoreReview,
+    WindowCache,
+    pick_reviews,
+)
 from .tagging import ReviewInput, TagResult, tag_reviews
 from .themes import build_theme_map
 
@@ -41,6 +50,9 @@ class RunRequest:
     ratings: list[int] | None
     output_language: str
     llm: LLMConfig
+    date_from: date | None = None
+    date_to: date | None = None
+    sampling: str = "newest"
 
 
 class AnalysisPipeline:
@@ -49,6 +61,35 @@ class AnalysisPipeline:
         self.store = store
         self.provider_factory = provider_factory
         self.settings = settings
+        self.windows = WindowCache()
+
+    def window(
+        self,
+        store_id: str,
+        *,
+        lang: str,
+        country: str,
+        date_from: date | None,
+        date_to: date | None,
+        ratings: list[int] | None,
+        on_progress=None,
+    ) -> ReviewWindow:
+        """Reviews in a date range; reuses a recent scan (e.g. from counting in the form) when there is one."""
+        key = (store_id, country, lang, tuple(sorted(ratings or [])), date_from, date_to)
+        cached = self.windows.get(key)
+        if cached:
+            return cached
+        result = self.store.scan_window(
+            store_id,
+            lang=lang,
+            country=country,
+            date_from=date_from,
+            date_to=date_to,
+            ratings=ratings,
+            on_progress=on_progress,
+        )
+        self.windows.put(key, result)
+        return result
 
     # ----- run lifecycle -------------------------------------------------
 
@@ -62,6 +103,9 @@ class AnalysisPipeline:
                 lang=req.lang,
                 ratings=sorted(set(req.ratings)) if req.ratings else None,
                 requested_count=req.count,
+                date_from=req.date_from,
+                date_to=req.date_to,
+                sampling=req.sampling,
                 output_language=req.output_language,
                 provider=req.llm.provider,
                 model=req.llm.model,
@@ -112,15 +156,33 @@ class AnalysisPipeline:
             def on_fetch(done: int, total: int) -> None:
                 self._update(run_id, progress_done=done, progress_total=total)
 
-            reviews = await asyncio.to_thread(
-                self.store.fetch_reviews,
-                store_id,
-                lang=lang,
-                country=country,
-                count=run.requested_count,
-                ratings=run.ratings,
-                on_progress=on_fetch,
-            )
+            window_note = ""
+            if run.date_from or run.date_to:
+                window = await asyncio.to_thread(
+                    self.window,
+                    store_id,
+                    lang=lang,
+                    country=country,
+                    date_from=run.date_from,
+                    date_to=run.date_to,
+                    ratings=run.ratings,
+                    on_progress=on_fetch,
+                )
+                reviews = pick_reviews(window.reviews, run.requested_count, run.sampling)
+                if not window.complete and window.oldest_reached:
+                    window_note = f"Google Play only reached back to {window.oldest_reached:%b %-d, %Y} for this period"
+                if not reviews:
+                    raise PipelineError("No reviews in this period. Try a longer period, another country or language.")
+            else:
+                reviews = await asyncio.to_thread(
+                    self.store.fetch_reviews,
+                    store_id,
+                    lang=lang,
+                    country=country,
+                    count=run.requested_count,
+                    ratings=run.ratings,
+                    on_progress=on_fetch,
+                )
             if not reviews:
                 raise PipelineError(
                     "No reviews found for this app with these settings. Try another country or language."
@@ -174,7 +236,7 @@ class AnalysisPipeline:
             )
             usage.add(grouping_usage)
 
-            notes = []
+            notes = [window_note] if window_note else []
             if outcome.failed:
                 notes.append(f"{outcome.failed} reviews could not be analyzed")
             if warning:

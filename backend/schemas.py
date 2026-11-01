@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_serializer, field_validator, model_validator
 
 from .providers import LLMConfig
 
@@ -28,10 +28,20 @@ class RunCreate(BaseModel):
     app: str = Field(min_length=3, description="Play Store app ID or link")
     country: str = Field("us", min_length=2, max_length=2)
     lang: str = Field("en", min_length=2, max_length=7)
-    count: int = Field(200, ge=10, le=2000)
+    # Small periods can have fewer than 10 reviews, so 1 is allowed.
+    count: int = Field(200, ge=1, le=2000)
     ratings: list[int] | None = Field(None, description="Only these star ratings, e.g. [1, 2]. Omit for all.")
     output_language: str = Field("English", max_length=32)
     llm: LLMConfigIn
+    date_from: date | None = None
+    date_to: date | None = None
+    sampling: str = Field("newest", pattern="^(newest|spread)$")
+
+    @model_validator(mode="after")
+    def _period(self) -> RunCreate:
+        if self.date_from and self.date_to and self.date_from > self.date_to:
+            raise ValueError("The period starts after it ends.")
+        return self
 
     @field_validator("country", "lang")
     @classmethod
@@ -83,6 +93,9 @@ class RunOut(BaseModel):
     lang: str | None
     ratings: list[int] | None
     requested_count: int
+    date_from: date | None = None
+    date_to: date | None = None
+    sampling: str = "newest"
     output_language: str
     provider: str
     model: str
@@ -114,3 +127,12 @@ class MetricsQueryIn(BaseModel):
     order_by: str | None = None
     descending: bool = True
     limit: int | None = Field(None, ge=1, le=1000)
+
+
+class ReviewWindowIn(BaseModel):
+    app: str = Field(min_length=3)
+    country: str = "us"
+    lang: str = "en"
+    ratings: list[int] | None = None
+    date_from: date | None = None
+    date_to: date | None = None

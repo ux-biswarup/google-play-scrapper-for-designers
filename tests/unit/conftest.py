@@ -51,6 +51,28 @@ class FakeStore:
     def search(self, query: str, *, lang: str, country: str, limit: int = 10) -> list[AppSearchHit]:
         return [AppSearchHit("com.example.app", "Example App", "Example Inc", None, 4.1)]
 
+    def scan_window(
+        self, store_id, *, lang, country, date_from, date_to, ratings=None, max_scan=10_000, on_progress=None
+    ):
+        """120 reviews spread over 12 days (Jan 1-12, 2026), filtered to the period like the real scan."""
+        from backend.services.play_store import ReviewWindow
+
+        self.scans = getattr(self, "scans", 0) + 1
+        everything = []
+        for i in range(120):  # every 2.4 hours from Jan 1, newest first
+            rating, text = TEMPLATES[i % len(TEMPLATES)]
+            when = datetime(2026, 1, 1, 12) + timedelta(hours=i * 2.4)
+            everything.append(StoreReview(f"w{i}", rating, text, when, "1.0", i % 5, None))
+        everything = [r for r in reversed(everything) if not ratings or r.rating in ratings]
+        inside = [
+            r
+            for r in everything
+            if (not date_from or r.reviewed_at.date() >= date_from) and (not date_to or r.reviewed_at.date() <= date_to)
+        ]
+        return ReviewWindow(
+            reviews=inside, scanned=len(everything), complete=True, oldest_reached=everything[-1].reviewed_at
+        )
+
     def fetch_reviews(self, store_id, *, lang, country, count, ratings=None, on_progress=None) -> list[StoreReview]:
         start = datetime(2026, 1, 1, 12)
         reviews = []

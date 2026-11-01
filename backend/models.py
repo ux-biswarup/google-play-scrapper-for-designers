@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import JSON, ForeignKey, Index, String, Text, UniqueConstraint, text
@@ -70,6 +70,10 @@ class Run(Base):
     lang: Mapped[str | None] = mapped_column(String(16))
     ratings: Mapped[list[int] | None] = mapped_column(JSON)
     requested_count: Mapped[int]
+    # Optional period: reviews written between these days (inclusive), picked newest-first or spread evenly.
+    date_from: Mapped[date | None]
+    date_to: Mapped[date | None]
+    sampling: Mapped[str] = mapped_column(String(16), default="newest", server_default=text("'newest'"))
     output_language: Mapped[str] = mapped_column(String(32), default="English")
     provider: Mapped[str] = mapped_column(String(32))
     model: Mapped[str] = mapped_column(String(128))

@@ -65,6 +65,9 @@ async def create_run(body: RunCreate, ctx: AppContext = Depends(get_ctx)) -> Run
             ratings=body.ratings,
             output_language=body.output_language,
             llm=llm,
+            date_from=body.date_from,
+            date_to=body.date_to,
+            sampling=body.sampling,
         )
     )
     ctx.jobs.start(run_id, lambda cancel: ctx.pipeline.execute(run_id, llm, cancel))

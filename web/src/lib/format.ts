@@ -10,7 +10,9 @@ export const plural = (count: number, word: string, many = `${word}s`) => `${num
 
 export function shortDate(iso: string | null | undefined): string {
   if (!iso) return "–";
-  return new Date(iso).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" });
+  // A plain date ("2026-10-12") is a calendar day: read it as local midnight, not UTC.
+  const value = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00` : iso;
+  return new Date(value).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function relativeTime(iso: string | null | undefined): string {
