@@ -119,7 +119,8 @@ def test_api_key_is_never_stored_or_returned(client):
 def test_validation_errors(client):
     assert client.post("/api/runs", json=RUN_BODY | {"app": "not an app id"}).status_code == 400
     assert client.post("/api/runs", json=RUN_BODY | {"ratings": [6]}).status_code == 422
-    assert client.post("/api/runs", json=RUN_BODY | {"count": 5}).status_code == 422
+    assert client.post("/api/runs", json=RUN_BODY | {"count": 0}).status_code == 422
+    assert client.post("/api/runs", json=RUN_BODY | {"count": 3000}).status_code == 422
     unknown = client.post("/api/runs", json=RUN_BODY | {"llm": {"provider": "nope", "model": "x"}})
     assert unknown.status_code == 400 and "Unknown provider" in unknown.json()["detail"]
     missing = wait_for_run(client, _start(client, app="com.missing.app"))
