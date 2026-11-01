@@ -8,6 +8,7 @@ import { NewAnalysisPage } from "./pages/NewAnalysis";
 import { RunPage } from "./pages/RunPage";
 import { SettingsPage } from "./pages/Settings";
 import { ConnectPage } from "./pages/Connect";
+import { AboutPage } from "./pages/About";
 import { BenchmarkDetailPage, BenchmarksPage } from "./pages/Benchmark";
 import "./index.css";
 
@@ -27,6 +28,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="new" element={<NewAnalysisPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="connect" element={<ConnectPage />} />
+                <Route path="about" element={<AboutPage />} />
                 <Route path="runs/:id" element={<RunPage />} />
                 <Route path="benchmark" element={<BenchmarksPage />} />
                 <Route path="benchmark/:id" element={<BenchmarkDetailPage />} />
