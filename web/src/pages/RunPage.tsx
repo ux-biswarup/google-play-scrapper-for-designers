@@ -242,8 +242,10 @@ function Dashboard({ run }: { run: Run }) {
     {/* Wide screens: the app header and the view menu stay put; only the content area scrolls. Narrow screens
         and print: one normal scrolling page. */}
     <div className="flex min-w-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden print:block print:overflow-visible">
-    <div className="shrink-0 border-line bg-paper lg:border-b">
-    <div className="mx-auto max-w-7xl px-6 pt-8 pb-5">
+    <div className="shrink-0 bg-paper">
+    {/* The divider spans the content container only, not the full window. */}
+    <div className="mx-auto max-w-7xl px-6">
+    <div className="border-line pt-8 pb-5 lg:border-b">
       <header className="flex flex-wrap items-start gap-4">
         <AppIcon src={run.app.icon_url} title={title} size={56} />
         <div className="min-w-[16rem] flex-1">
@@ -314,6 +316,7 @@ function Dashboard({ run }: { run: Run }) {
           <Notice title={run.message} />
         </div>
       )}
+    </div>
     </div>
     </div>
 
