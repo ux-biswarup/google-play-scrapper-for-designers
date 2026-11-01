@@ -8,6 +8,7 @@ import { flag, plural, relativeTime } from "../lib/format";
 import { highlightParts, searchRuns } from "../lib/runSearch";
 import { useConnection, useTheme } from "../lib/settings";
 import { AuthorAvatar } from "../pages/About";
+import { Logo } from "./Logo";
 import { cx } from "./ui";
 
 export function AppIcon({ src, title, size = 32 }: { src: string | null | undefined; title: string; size?: number }) {
@@ -299,28 +300,45 @@ export function Shell() {
     return (
       <nav aria-label="Analyses" className="flex h-full flex-col gap-1 px-3 py-3">
         <div className="mb-2 flex h-10 items-center">
-          {mobile ? (
-            <button onClick={() => setOpen(false)} aria-label="Close menu" className={cx(slot, "h-10 rounded-md text-muted hover:bg-soft hover:text-ink")}>
-              <X className="size-5" aria-hidden />
-            </button>
-          ) : (
-            <RailTip on={collapsed} label="Expand sidebar" detail={SHORTCUT}>
+          {collapsed ? (
+            // Rail: the logo sits in the icon column and turns into the expand button on hover or focus.
+            <RailTip on label="Expand sidebar" detail={SHORTCUT}>
               <button
                 onClick={toggleRail}
-                aria-expanded={!collapsed}
+                aria-expanded={false}
                 aria-controls="sidebar"
-                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                title={collapsed ? undefined : `Collapse sidebar (${SHORTCUT})`}
-                className={cx(slot, "h-10 rounded-md text-muted hover:bg-soft hover:text-ink")}
+                aria-label="Expand sidebar"
+                className={cx(slot, "group/logo h-10 rounded-md text-muted hover:bg-soft hover:text-ink")}
               >
-                {collapsed ? <PanelLeftOpen className="size-5" aria-hidden /> : <PanelLeftClose className="size-5" aria-hidden />}
+                <Logo size={28} className="group-hover/logo:hidden group-focus-visible/logo:hidden" />
+                <PanelLeftOpen className="hidden size-5 group-hover/logo:block group-focus-visible/logo:block" aria-hidden />
               </button>
             </RailTip>
-          )}
-          {!collapsed && (
-            <NavLink to="/" className="truncate pl-1 text-lg font-semibold tracking-tight whitespace-nowrap">
-              Review Insights
-            </NavLink>
+          ) : (
+            <>
+              <NavLink to="/" className="flex h-10 min-w-0 flex-1 items-center">
+                <span className={slot}>
+                  <Logo size={28} />
+                </span>
+                <span className="truncate pl-1 text-lg font-semibold tracking-tight whitespace-nowrap">Review Insights</span>
+              </NavLink>
+              {mobile ? (
+                <button onClick={() => setOpen(false)} aria-label="Close menu" className="grid size-8 shrink-0 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink">
+                  <X className="size-5" aria-hidden />
+                </button>
+              ) : (
+                <button
+                  onClick={toggleRail}
+                  aria-expanded
+                  aria-controls="sidebar"
+                  aria-label="Collapse sidebar"
+                  title={`Collapse sidebar (${SHORTCUT})`}
+                  className="grid size-8 shrink-0 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink"
+                >
+                  <PanelLeftClose className="size-5" aria-hidden />
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -480,6 +498,7 @@ export function Shell() {
           <button onClick={() => setOpen(true)} aria-label="Open menu" className="rounded p-1 text-muted hover:text-ink">
             <Menu className="size-5" />
           </button>
+          <Logo size={24} />
           <span className="font-semibold">Review Insights</span>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">

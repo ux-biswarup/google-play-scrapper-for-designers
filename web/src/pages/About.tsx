@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Bug, ExternalLink, Globe, Star } from "lucide-react";
 import { AUTHOR, REPO } from "../lib/author";
+import { Logo } from "../components/Logo";
 
 /** GitHub and LinkedIn marks (Simple Icons, CC0); lucide-react no longer ships brand icons. */
 function GithubMark({ className }: { className?: string }) {
@@ -78,7 +79,10 @@ export function AboutPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-10">
       <header className="flex flex-col gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">About Review Insights</h1>
+        <div className="flex items-center gap-3">
+          <Logo size={48} />
+          <h1 className="text-2xl font-semibold tracking-tight">About Review Insights</h1>
+        </div>
         <p className="max-w-prose text-lg leading-relaxed text-muted">
           Review Insights turns Google Play reviews into design and product decisions, with the real reviews behind
           every point. It's free, open source and runs on your computer.
