@@ -103,3 +103,55 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Assistant answers rendered from Markdown. */
+.chat-prose {
+  font-size: 0.925rem;
+  line-height: 1.6;
+}
+.chat-prose > * + * {
+  margin-top: 0.6rem;
+}
+.chat-prose h1,
+.chat-prose h2,
+.chat-prose h3,
+.chat-prose h4 {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-top: 1rem;
+}
+.chat-prose ul,
+.chat-prose ol {
+  padding-left: 1.2rem;
+}
+.chat-prose ul {
+  list-style: disc;
+}
+.chat-prose ol {
+  list-style: decimal;
+}
+.chat-prose li + li {
+  margin-top: 0.25rem;
+}
+.chat-prose blockquote {
+  border-left: 2px solid var(--line);
+  padding-left: 0.75rem;
+  font-family: var(--font-quote);
+}
+.chat-prose code {
+  background: var(--soft);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  font-size: 0.85em;
+}
+.chat-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.chat-prose th,
+.chat-prose td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+}

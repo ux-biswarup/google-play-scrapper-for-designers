@@ -7,6 +7,7 @@ import { Shell } from "./components/Shell";
 import { NewAnalysisPage } from "./pages/NewAnalysis";
 import { RunPage } from "./pages/RunPage";
 import { SettingsPage } from "./pages/Settings";
+import { ConnectPage } from "./pages/Connect";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route index element={<Navigate to="/new" replace />} />
                 <Route path="new" element={<NewAnalysisPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="connect" element={<ConnectPage />} />
                 <Route path="runs/:id" element={<RunPage />} />
                 <Route path="*" element={<Navigate to="/new" replace />} />
               </Route>

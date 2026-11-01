@@ -282,3 +282,79 @@ export const api = {
   reviews: (id: string, params: ReviewQuery) => request<ReviewPage>(`/runs/${id}/reviews${query(params)}`),
   chartUrl: (id: string, chart: string, fmt: "png" | "svg" = "png") => `/api/runs/${id}/charts/${chart}.${fmt}`,
 };
+
+// ---- Assistant chat ---------------------------------------------------------------------------
+
+/** A review as returned by the assistant's tools (used for citations). */
+export type CitedReview = {
+  review_id: string;
+  rating: number;
+  date: string;
+  app_version: string;
+  helpful_votes: number;
+  text: string;
+  themes: string[];
+};
+
+export type ChatStep = { id: string; label: string; ok: boolean; running?: boolean };
+
+export type ChatTurn =
+  | { role: "user"; text: string }
+  | { role: "assistant"; text: string; steps: ChatStep[]; reviews: Record<string, CitedReview>; error?: string };
+
+export type ChatEvent =
+  | { type: "text"; delta: string }
+  | { type: "tool"; id: string; name: string; label: string }
+  | { type: "tool_result"; id: string; ok: boolean; reviews: Record<string, CitedReview> }
+  | { type: "error"; message: string }
+  | { type: "done"; usage: { input_tokens: number; output_tokens: number } };
+
+export const chatApi = {
+  get: (runId: string) => request<{ turns: ChatTurn[]; suggestions: string[] }>(`/runs/${runId}/chat`),
+  clear: (runId: string) => request<void>(`/runs/${runId}/chat`, { method: "DELETE" }),
+
+  /** Send a message and yield the streamed reply events. */
+  async *send(runId: string, message: string, llm: LLMConfig, signal: AbortSignal): AsyncGenerator<ChatEvent> {
+    const res = await fetch(`/api/runs/${runId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, llm }),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      let detail = `Request failed (${res.status})`;
+      try {
+        const body = await res.json();
+        if (typeof body.detail === "string") detail = body.detail;
+      } catch {
+        // keep the generic message
+      }
+      throw new ApiError(detail, res.status);
+    }
+    const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        if (frame.startsWith("data: ")) yield JSON.parse(frame.slice(6)) as ChatEvent;
+      }
+    }
+  },
+};
+
+// ---- Connecting other AI apps (MCP) -----------------------------------------------------------
+
+export type McpInfo = {
+  server_name: string;
+  http_url: string;
+  python: string;
+  project_dir: string;
+  module: string;
+  tools: { name: string; description: string }[];
+};
+
+export const connectApi = { mcp: () => request<McpInfo>("/connect/mcp") };

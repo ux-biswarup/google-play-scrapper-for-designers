@@ -17,11 +17,13 @@ from fastapi.staticfiles import StaticFiles
 from google_play_scraper.exceptions import ExtraHTTPError
 
 from .analytics.frame import FrameCache
-from .api import apps, insights, providers, runs
+from .api import apps, chat, connect, insights, providers, runs
+from .assistant.tools import ToolContext
 from .config import Settings, load_settings
 from .context import AppContext
 from .db import Database
 from .jobs import JobManager
+from .mcp_server import build_mcp_server, http_security
 from .providers import LLMError, create_provider
 from .services.pipeline import AnalysisPipeline, ProviderFactory
 from .services.play_store import AppNotFound, PlayStoreClient
@@ -51,11 +53,16 @@ def create_app(
         frames=FrameCache(),
     )
 
+    # MCP over HTTP at /mcp/ for MCP apps that connect by URL.
+    mcp = build_mcp_server(ToolContext(db, ctx.frames))
+    mcp_http = mcp.streamable_http_app(streamable_http_path="/", transport_security=http_security())
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         db.init()
         ctx.pipeline.mark_interrupted()
-        yield
+        async with mcp.session_manager.run():
+            yield
         await jobs.shutdown()
 
     app = FastAPI(title="Play Store Review Insights API", version=__version__, lifespan=lifespan)
@@ -84,8 +91,9 @@ def create_app(
     def health() -> dict:
         return {"status": "ok", "version": __version__}
 
-    for router in (providers.router, apps.router, runs.router, insights.router):
+    for router in (providers.router, apps.router, runs.router, insights.router, chat.router, connect.router):
         app.include_router(router, prefix="/api")
+    app.mount("/mcp", mcp_http)
     if (settings.web_dist / "index.html").is_file():
         _serve_frontend(app, settings.web_dist)
     return app

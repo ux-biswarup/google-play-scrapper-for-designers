@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Loader2, RotateCcw, Trash2 } from "lucide-react";
+import { Check, ExternalLink, Loader2, MessageSquareText, RotateCcw, Trash2 } from "lucide-react";
 import { api, type Run } from "../lib/api";
 import { STAGES, compact, flag, num, plural, ratingFilterLabel, shortDate } from "../lib/format";
 import { countryName } from "../lib/locales";
 import { AppIcon } from "../components/Shell";
+import { ChatPanel } from "../components/ChatPanel";
 import { Button, Notice, Spinner, cx } from "../components/ui";
 import { OverviewTab } from "./tabs/Overview";
 import { ProblemsTab } from "./tabs/Problems";
@@ -135,8 +136,15 @@ function Dashboard({ run }: { run: Run }) {
   });
   const title = run.app.title ?? run.app.store_id;
   const legacy = run.provider === "legacy";
+  const [chatOpen, setChatOpen] = useState(() => localStorage.getItem("ri.chat-open") === "1");
+  const toggleChat = (open: boolean) => {
+    localStorage.setItem("ri.chat-open", open ? "1" : "0");
+    setChatOpen(open);
+  };
 
   return (
+    <div className="flex h-full min-h-0">
+    <div className="min-w-0 flex-1 overflow-y-auto">
     <div className="mx-auto max-w-6xl px-6 py-8">
       <header className="flex flex-wrap items-start gap-4">
         <AppIcon src={run.app.icon_url} title={title} size={56} />
@@ -164,6 +172,11 @@ function Dashboard({ run }: { run: Run }) {
             >
               <ExternalLink className="size-4" aria-hidden /> Play Store
             </a>
+          )}
+          {!chatOpen && (
+            <Button size="sm" variant="primary" onClick={() => toggleChat(true)}>
+              <MessageSquareText className="size-4" aria-hidden /> Ask AI
+            </Button>
           )}
           <Button size="sm" onClick={() => navigate("/new", { state: { rerun: run } })}>
             <RotateCcw className="size-4" aria-hidden /> Run again
@@ -209,6 +222,13 @@ function Dashboard({ run }: { run: Run }) {
         {tab === "trends" && <TrendsTab run={run} />}
         {tab === "reviews" && <ReviewsTab run={run} />}
       </div>
+    </div>
+    </div>
+    {chatOpen && (
+      <div className="fixed inset-0 z-40 lg:static lg:z-auto lg:w-[26rem] lg:shrink-0 lg:border-l lg:border-line">
+        <ChatPanel run={run} onClose={() => toggleChat(false)} />
+      </div>
+    )}
     </div>
   );
 }

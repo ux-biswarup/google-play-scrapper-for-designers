@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from backend.config import Settings
 from backend.main import create_app
-from backend.providers import LLMConfig, LLMError, LLMProvider, ModelInfo, Usage
+from backend.providers import LLMConfig, LLMError, LLMProvider, ModelInfo, TextDelta, ToolCall, TurnEnd, Usage
 from backend.services.play_store import AppDetails, AppNotFound, AppSearchHit, StoreReview
 
 # (rating, text) templates; the fake model tags reviews by keywords in the text.
@@ -135,6 +135,27 @@ class FakeProvider(LLMProvider):
                 themes.setdefault(name, []).append(int(index))
             return {"themes": [{"name": n, "members": m} for n, m in themes.items()]}, Usage(20, 10)
         return {"ok": True}, Usage(1, 1)
+
+    async def chat_stream(self, *, system, messages, tools, max_tokens=4000):
+        """Scripted assistant: first look something up, then answer citing a review from the tool result."""
+        if self.fail:
+            raise self.fail
+        self.calls["chat"] = self.calls.get("chat", 0) + 1
+        self.calls.setdefault("chat_history_sizes", []).append(len(messages))
+        last = messages[-1]
+        if last.role == "user":
+            if "bad metric" in last.content:
+                yield TurnEnd([ToolCall("c1", "query_metrics", {"measures": ["profit"]})], Usage(5, 1))
+            else:
+                yield TurnEnd([ToolCall("c1", "get_problems", {"limit": 3})], Usage(5, 1))
+            return
+        cited = re.search(r'"review_id": "([^"]+)"', last.content)
+        if cited:
+            for part in ("The biggest problem is login. ", f"[[r:{cited.group(1)}]]"):
+                yield TextDelta(part)
+        else:
+            yield TextDelta(f"That lookup failed: {json.loads(last.content).get('error', '')}")
+        yield TurnEnd([], Usage(10, 5))
 
 
 @pytest.fixture(autouse=True)

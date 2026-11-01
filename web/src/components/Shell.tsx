@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Menu, Moon, Plus, Settings2, Sun, X } from "lucide-react";
+import { Loader2, Menu, Moon, Plug, Plus, Settings2, Sun, X } from "lucide-react";
 import { api, type Run } from "../lib/api";
 import { flag, plural, relativeTime } from "../lib/format";
 import { useConnection, useTheme } from "../lib/settings";
@@ -122,6 +122,15 @@ export function Shell() {
               <span className="text-warn">Connect an AI model</span>
             )}
           </span>
+        </NavLink>
+        <NavLink
+          to="/connect"
+          className={({ isActive }) =>
+            cx("flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-soft", isActive && "bg-soft")
+          }
+        >
+          <Plug className="size-4 text-muted" aria-hidden />
+          Use in Claude, ChatGPT…
         </NavLink>
         <button onClick={toggle} className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-muted hover:bg-soft hover:text-ink">
           {theme === "dark" ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}

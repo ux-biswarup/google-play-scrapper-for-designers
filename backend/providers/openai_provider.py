@@ -3,11 +3,27 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import openai
 
-from .base import LLMConfig, LLMError, LLMProvider, ModelInfo, Usage, extract_json_object, provider_message
+from .base import (
+    ChatEvent,
+    ChatMessage,
+    LLMConfig,
+    LLMError,
+    LLMProvider,
+    ModelInfo,
+    TextDelta,
+    ToolCall,
+    ToolSpec,
+    TurnEnd,
+    Usage,
+    extract_json_object,
+    parse_arguments,
+    provider_message,
+)
 
 # Model ids containing these are not chat models (embeddings, audio, images, moderation...).
 _NON_CHAT_MARKERS = (
@@ -104,5 +120,65 @@ class OpenAICompatibleProvider(LLMProvider):
         kwargs: dict[str, Any] = {"response_format": {"type": "json_object"}} if self._json_mode else {}
         return await self._client.chat.completions.create(model=self._model, messages=messages, **kwargs)
 
+    async def chat_stream(
+        self, *, system: str, messages: list[ChatMessage], tools: list[ToolSpec], max_tokens: int = 4000
+    ) -> AsyncIterator[ChatEvent]:
+        payload = [{"role": "system", "content": system}, *_to_openai(messages)]
+        specs = [
+            {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
+            for t in tools
+        ]
+        try:
+            stream = await self._client.chat.completions.create(
+                model=self._model,
+                messages=payload,
+                tools=specs or openai.NOT_GIVEN,
+                stream=True,
+                # Usage in streams is opt-in on OpenAI; other compatible servers may reject the option.
+                stream_options={"include_usage": True} if self._label == "OpenAI" else openai.NOT_GIVEN,
+            )
+            partial: dict[int, dict] = {}  # tool calls arrive in fragments, keyed by index
+            usage = Usage()
+            async for chunk in stream:
+                if chunk.usage:
+                    usage = Usage(chunk.usage.prompt_tokens or 0, chunk.usage.completion_tokens or 0)
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    yield TextDelta(delta.content)
+                for fragment in delta.tool_calls or []:
+                    call = partial.setdefault(fragment.index, {"id": "", "name": "", "arguments": ""})
+                    call["id"] = fragment.id or call["id"]
+                    if fragment.function:
+                        call["name"] += fragment.function.name or ""
+                        call["arguments"] += fragment.function.arguments or ""
+        except openai.APIError as exc:
+            raise self._wrap(exc) from exc
+        calls = [
+            ToolCall(c["id"] or f"call_{i}", c["name"], parse_arguments(c["arguments"]))
+            for i, c in sorted(partial.items())
+            if c["name"]
+        ]
+        yield TurnEnd(calls, usage)
+
     async def aclose(self) -> None:
         await self._client.close()
+
+
+def _to_openai(messages: list[ChatMessage]) -> list[dict]:
+    out: list[dict] = []
+    for m in messages:
+        if m.role == "tool":
+            out.append({"role": "tool", "tool_call_id": m.tool_call_id, "content": m.content})
+        elif m.role == "assistant":
+            entry: dict = {"role": "assistant", "content": m.content or None}
+            if m.tool_calls:
+                entry["tool_calls"] = [
+                    {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": json.dumps(c.arguments)}}
+                    for c in m.tool_calls
+                ]
+            out.append(entry)
+        else:
+            out.append({"role": "user", "content": m.content})
+    return out

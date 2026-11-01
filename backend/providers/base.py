@@ -1,10 +1,11 @@
-"""Provider-agnostic LLM interface used by the analysis pipeline (and later the chat assistant)."""
+"""Provider-agnostic LLM interface used by the analysis pipeline and the chat assistant."""
 
 from __future__ import annotations
 
 import json
 import re
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -48,6 +49,47 @@ class LLMError(Exception):
         self.fatal = fatal
 
 
+@dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
+class ChatMessage:
+    """Provider-neutral chat history entry."""
+
+    role: str  # "user", "assistant" or "tool"
+    content: str = ""
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    tool_call_id: str | None = None  # for role "tool": which call this answers
+    name: str | None = None  # for role "tool": the tool's name
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
+@dataclass
+class TextDelta:
+    text: str
+
+
+@dataclass
+class TurnEnd:
+    """End of one model turn: the tool calls it requested (if any) and token usage."""
+
+    tool_calls: list[ToolCall]
+    usage: Usage
+
+
+ChatEvent = TextDelta | TurnEnd
+
+
 class LLMProvider(ABC):
     @abstractmethod
     async def list_models(self) -> list[ModelInfo]:
@@ -59,8 +101,25 @@ class LLMProvider(ABC):
     ) -> tuple[dict[str, Any], Usage]:
         """Return a JSON object matching `schema` (validated by the caller) plus token usage."""
 
+    def chat_stream(
+        self, *, system: str, messages: list[ChatMessage], tools: list[ToolSpec], max_tokens: int = 4000
+    ) -> AsyncIterator[ChatEvent]:
+        """Stream one assistant turn: TextDelta events, then exactly one TurnEnd."""
+        raise LLMError("This provider does not support chat yet.", fatal=True)
+
     async def aclose(self) -> None:  # pragma: no cover - trivial default
         return None
+
+
+def parse_arguments(raw: str | dict | None) -> dict[str, Any]:
+    """Tool-call arguments arrive as a JSON string from most APIs; tolerate empty or broken JSON."""
+    if isinstance(raw, dict):
+        return raw
+    try:
+        value = json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 def provider_message(exc: Exception) -> str:

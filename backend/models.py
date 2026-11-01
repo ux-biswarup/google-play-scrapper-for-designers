@@ -119,3 +119,18 @@ class Insight(Base):
     journey_stage: Mapped[str | None] = mapped_column(String(32))
     emotion: Mapped[str | None] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class ChatEntry(Base):
+    """One message of the assistant conversation about a run (user, assistant or tool result)."""
+
+    __tablename__ = "chat_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text, default="")
+    tool_calls: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    tool_call_id: Mapped[str | None] = mapped_column(String(128))
+    name: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

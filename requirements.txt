@@ -11,6 +11,9 @@ pandas>=2.2
 matplotlib>=3.11
 plotly>=7.1
 
+# MCP server (lets Claude, ChatGPT, Cursor and other apps query analyses)
+mcp>=2.3
+
 # Store data
 google-play-scraper==1.2.7
 

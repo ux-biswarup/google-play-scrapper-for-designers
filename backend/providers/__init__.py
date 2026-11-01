@@ -5,7 +5,20 @@ from __future__ import annotations
 import os
 from dataclasses import asdict, dataclass
 
-from .base import LLMConfig, LLMError, LLMProvider, ModelInfo, Usage, extract_json_object
+from .base import (
+    ChatEvent,
+    ChatMessage,
+    LLMConfig,
+    LLMError,
+    LLMProvider,
+    ModelInfo,
+    TextDelta,
+    ToolCall,
+    ToolSpec,
+    TurnEnd,
+    Usage,
+    extract_json_object,
+)
 
 
 @dataclass(frozen=True)
@@ -120,6 +133,12 @@ def create_provider(config: LLMConfig) -> LLMProvider:
 
 __all__ = [
     "PROVIDERS",
+    "ChatEvent",
+    "ChatMessage",
+    "TextDelta",
+    "ToolCall",
+    "ToolSpec",
+    "TurnEnd",
     "LLMConfig",
     "LLMError",
     "LLMProvider",
