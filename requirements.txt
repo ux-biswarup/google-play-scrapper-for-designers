@@ -22,6 +22,3 @@ google-play-scraper==1.2.7
 anthropic>=0.50
 openai>=1.60
 
-# Legacy Streamlit UI (removed once the new frontend replaces it)
-streamlit>=1.32
-seaborn>=0.13
