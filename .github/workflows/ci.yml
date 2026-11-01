@@ -153,7 +153,8 @@ jobs:
 
   summary:
     name: Summary
-    if: always()
+    # Skip when the run was cancelled (e.g. replaced by a newer push), so it shows as cancelled, not failed.
+    if: ${{ always() && !cancelled() }}
     needs: [lint, test, frontend, smoke]
     runs-on: ubuntu-latest
     steps:
