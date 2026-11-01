@@ -1,0 +1,45 @@
+# Secrets & credentials (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+credentials*.json
+service-account*.json
+*secret*.json
+
+# Local app data (SQLite database, caches)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node / frontend
+node_modules/
+frontend-dist/
+*.tsbuildinfo
+
+# Editors & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

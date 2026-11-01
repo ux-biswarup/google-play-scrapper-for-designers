@@ -1,0 +1,33 @@
+{
+  "app_info": {
+    "title": "Pok\u00e9mon GO",
+    "developer": "Niantic, Inc.",
+    "score": 3.9326508,
+    "reviews": 995979,
+    "installs": "500,000,000+",
+    "price": 0,
+    "size": null,
+    "updated": 1771303106,
+    "content_rating": "Everyone"
+  },
+  "analysis": {
+    "total_reviews": 100,
+    "average_rating": 2.32,
+    "rating_distribution": {
+      "1": 48,
+      "5": 17,
+      "3": 15,
+      "2": 13,
+      "4": 7
+    },
+    "sentiment_distribution": {
+      "positive": 24,
+      "neutral": 15,
+      "negative": 61
+    },
+    "common_topics": {},
+    "common_issues": {},
+    "common_praises": {}
+  },
+  "generated_at": "2026-02-28T17:25:55.346986"
+}

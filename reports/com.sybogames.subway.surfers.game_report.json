@@ -1,0 +1,29 @@
+{
+  "app_info": {
+    "title": "Subway Surfers City",
+    "developer": "SYBO Games",
+    "score": 4.849754,
+    "reviews": 3908,
+    "installs": "5,000,000+",
+    "price": 0,
+    "size": null,
+    "updated": 1771602938,
+    "content_rating": "Rated for 7+"
+  },
+  "analysis": {
+    "total_reviews": 10,
+    "average_rating": 5.0,
+    "rating_distribution": {
+      "5": 10
+    },
+    "sentiment_distribution": {
+      "positive": 10,
+      "neutral": 0,
+      "negative": 0
+    },
+    "common_topics": {},
+    "common_issues": {},
+    "common_praises": {}
+  },
+  "generated_at": "2026-02-28T17:26:40.889987"
+}

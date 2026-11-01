@@ -1,0 +1,335 @@
+[
+  {
+    "review_id": "c63882e6-cbf7-44a4-8e3a-8e84a0c8d26e",
+    "date": "2026-02-18T10:45:39",
+    "rating": 5,
+    "content": "good",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "general satisfaction"
+    ],
+    "issues": [],
+    "praises": [
+      "good overall experience"
+    ]
+  },
+  {
+    "review_id": "b61467d8-3c09-4c46-a0d6-b886e41e80ff",
+    "date": "2026-02-18T10:12:12",
+    "rating": 5,
+    "content": "this is the best app for recharges and bank l like it",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "recharges",
+      "banking"
+    ],
+    "issues": [],
+    "praises": [
+      "best app for recharges",
+      "like the banking features"
+    ]
+  },
+  {
+    "review_id": "34b2e782-971a-4c57-ad00-5920a4ef5c37",
+    "date": "2026-02-18T10:10:47",
+    "rating": 5,
+    "content": "good but prices is more",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "pricing"
+    ],
+    "issues": [
+      "high prices"
+    ],
+    "praises": [
+      "generally good"
+    ]
+  },
+  {
+    "review_id": "86a73006-c6fd-415a-9b10-221944ca20cc",
+    "date": "2026-02-18T10:09:59",
+    "rating": 5,
+    "content": "I am since 2014 user of Airtel and the service of Airtel is excellent \u2764\ufe0f",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "mobile service",
+      "customer loyalty"
+    ],
+    "issues": [],
+    "praises": [
+      "excellent service",
+      "long-term customer since 2014"
+    ]
+  },
+  {
+    "review_id": "8f6b985b-0ed7-4b0f-8eac-5ab78a7e015d",
+    "date": "2026-02-18T10:03:13",
+    "rating": 1,
+    "content": "Worst Network",
+    "sentiment": "negative",
+    "app_version": "unknown",
+    "topics": [
+      "network quality"
+    ],
+    "issues": [
+      "poor network performance"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "a1b13e46-9a22-41a9-a45c-33c53a9afcb4",
+    "date": "2026-02-18T09:51:08",
+    "rating": 5,
+    "content": "Good",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "general satisfaction"
+    ],
+    "issues": [],
+    "praises": [
+      "good overall experience"
+    ]
+  },
+  {
+    "review_id": "3ffa0866-01a0-4059-96e9-ba58163ea905",
+    "date": "2026-02-18T09:50:05",
+    "rating": 1,
+    "content": "The app is as slow & disgusting as their network. No matter what you are doing in phone network will always hit your phone like boom network vanished. Even I massaged someone on WhatsApp but network was not there it's like vanished from my phone btw Developer's and Airtel employees both are sleeping. Whenever the customer files a complaint they will give you date Kya Date-Date khelne ke liye app & network banaya hai kya. Janta Ka Paisa Lo Or Use Karo Yahi Aata Hai Bss.",
+    "sentiment": "negative",
+    "app_version": "4.136.3",
+    "topics": [
+      "network performance",
+      "app performance",
+      "customer service",
+      "complaint handling"
+    ],
+    "issues": [
+      "slow app",
+      "poor network connectivity",
+      "network disappearing suddenly",
+      "unresponsive developers",
+      "ineffective complaint resolution",
+      "delayed response to complaints"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "621127e8-c822-4b4c-a9e7-d93771d74d54",
+    "date": "2026-02-18T09:49:01",
+    "rating": 5,
+    "content": "My prepaid is not happy",
+    "sentiment": "positive",
+    "app_version": "4.137.2",
+    "topics": [
+      "prepaid service"
+    ],
+    "issues": [
+      "prepaid service not working properly"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "88394530-7dd4-48b5-8ad0-9a7668c8c6da",
+    "date": "2026-02-18T09:43:56",
+    "rating": 1,
+    "content": "always lagging , never work as expected",
+    "sentiment": "negative",
+    "app_version": "4.36.0.10",
+    "topics": [
+      "performance",
+      "functionality"
+    ],
+    "issues": [
+      "app lagging",
+      "not working as expected",
+      "poor performance"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "81915c95-f720-49b9-8640-ffc223042ef3",
+    "date": "2026-02-18T09:17:47",
+    "rating": 5,
+    "content": "very nice \ud83d\udc4d",
+    "sentiment": "positive",
+    "app_version": "4.110.1",
+    "topics": [
+      "general satisfaction"
+    ],
+    "issues": [],
+    "praises": [
+      "very nice"
+    ]
+  },
+  {
+    "review_id": "ad92cda2-a21a-466c-9e18-61b432d3da08",
+    "date": "2026-02-18T09:17:11",
+    "rating": 5,
+    "content": "stating...airtel...may mobile. ok thanks",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "mobile service",
+      "airtel"
+    ],
+    "issues": [],
+    "praises": [
+      "ok thanks"
+    ]
+  },
+  {
+    "review_id": "b6530995-f4a0-4121-9659-1bd6dec50703",
+    "date": "2026-02-18T09:12:37",
+    "rating": 1,
+    "content": "worst customer support \ud83e\udd2c",
+    "sentiment": "negative",
+    "app_version": "4.136.3",
+    "topics": [
+      "customer support"
+    ],
+    "issues": [
+      "poor customer support"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "ee7ef8fb-e7ba-4b8c-a329-488667c03d79",
+    "date": "2026-02-18T08:57:25",
+    "rating": 5,
+    "content": "good",
+    "sentiment": "positive",
+    "app_version": "4.135.3",
+    "topics": [
+      "general satisfaction"
+    ],
+    "issues": [],
+    "praises": [
+      "good overall experience"
+    ]
+  },
+  {
+    "review_id": "b3cf2e57-89d8-4dcd-936e-9a8dac0fbe77",
+    "date": "2026-02-18T08:56:15",
+    "rating": 5,
+    "content": "good app",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "general app experience"
+    ],
+    "issues": [],
+    "praises": [
+      "good app"
+    ]
+  },
+  {
+    "review_id": "605f0a28-670f-40af-961b-262f38103e9b",
+    "date": "2026-02-18T08:53:52",
+    "rating": 1,
+    "content": "Airtel your service very cheap and poor",
+    "sentiment": "negative",
+    "app_version": "4.136.3",
+    "topics": [
+      "service",
+      "pricing"
+    ],
+    "issues": [
+      "poor service",
+      "cheap service"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "b9cf9b26-5932-4a31-af2c-58a23b71d347",
+    "date": "2026-02-18T08:49:47",
+    "rating": 1,
+    "content": "if there was negative rating I would have given it. Very poor service, No customers care. No prob solving. Digital cheater of the country. Going to leave soon & inspire people to leave airtel",
+    "sentiment": "negative",
+    "app_version": "unknown",
+    "topics": [
+      "customer service",
+      "problem resolution",
+      "company reputation"
+    ],
+    "issues": [
+      "very poor service",
+      "no customer care",
+      "no problem solving",
+      "digital cheater",
+      "planning to leave the service"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "832686d0-57eb-483f-9522-aca807bd3e80",
+    "date": "2026-02-18T08:47:43",
+    "rating": 5,
+    "content": "good",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "general satisfaction"
+    ],
+    "issues": [],
+    "praises": [
+      "good overall experience"
+    ]
+  },
+  {
+    "review_id": "9e410350-30ef-4ed1-a5bb-4394a586d5d7",
+    "date": "2026-02-18T08:47:06",
+    "rating": 5,
+    "content": "Best app",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "overall experience"
+    ],
+    "issues": [],
+    "praises": [
+      "Best app"
+    ]
+  },
+  {
+    "review_id": "c91e219b-c3ef-4a61-b6cb-857c062c50ad",
+    "date": "2026-02-18T08:44:50",
+    "rating": 1,
+    "content": "18 Feb 2026 : Setting up hellotune got struck. keep on showing failure. such a bad app. App keep on loading all the pages I open. App just hanging infinitely. Just a endless bugs added in each update. need a major updates to this app. I don't know, with what guts they add upi and Airtel bank to this app. Useless app.",
+    "sentiment": "negative",
+    "app_version": "4.136.3",
+    "topics": [
+      "app performance",
+      "app setup",
+      "payment features",
+      "app updates"
+    ],
+    "issues": [
+      "setup failure",
+      "slow loading",
+      "app hanging",
+      "endless bugs",
+      "poor update quality"
+    ],
+    "praises": []
+  },
+  {
+    "review_id": "3358f26f-f8ec-4766-9b60-cd13259354ca",
+    "date": "2026-02-18T08:43:18",
+    "rating": 4,
+    "content": "great experience",
+    "sentiment": "positive",
+    "app_version": "4.136.3",
+    "topics": [
+      "user experience"
+    ],
+    "issues": [],
+    "praises": [
+      "great experience"
+    ]
+  }
+]

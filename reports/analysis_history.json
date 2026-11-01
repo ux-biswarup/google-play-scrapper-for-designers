@@ -1,0 +1,38 @@
+[
+  {
+    "app_id": "com.sybogames.subway.surfers.game",
+    "app_name": "Subway Surfers City",
+    "date": "2026-02-28T17:26:40.889987"
+  },
+  {
+    "app_id": "com.nianticlabs.pokemongo",
+    "app_name": "Pok\u00e9mon GO",
+    "date": "2026-02-28T17:25:55.346986"
+  },
+  {
+    "app_id": "com.myairtelapp",
+    "app_name": "Airtel Thanks: Recharge & Bank",
+    "date": "2026-02-19T10:56:09.745370"
+  },
+  {
+    "app_id": "com.dts.freefiremax",
+    "app_name": "Free Fire MAX x JUJUTSU KAISEN",
+    "date": "2026-01-24T11:39:20.554784"
+  },
+  {
+    "app_id": "com.eigenplus.www.concretemixdesign",
+    "app_name": "Concrete Mix Design IS-10262",
+    "date": "2025-06-05T00:34:18.201868"
+  },
+  {
+    "app_id": "com.eigenplus.www.solidmechanics",
+    "app_name": "Solid Mechanics (Mohr's Circle",
+    "date": "2025-06-05T00:23:32.561856"
+  },
+  {
+    "app_id": "com.sybogames.subway.surfers.game",
+    "app_name": "Subway Surfers City",
+    "date": "2026-02-28 17:26:41",
+    "report_path": "reports/com.sybogames.subway.surfers.game_report.json"
+  }
+]
