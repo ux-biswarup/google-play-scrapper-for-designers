@@ -25,7 +25,28 @@ COLUMNS = [
     "journey_stage",
     "emotion",
     "tagged",
+    # tag version 2
+    "severity",
+    "user_type",
+    "churn_risk",
+    "competitors",
+    "accessibility",
+    # derived segments
+    "detail",
+    "upvotes",
+    "replied",
 ]
+
+
+def detail_band(text: str) -> str:
+    """How much the reviewer wrote: one-liners vs detailed reports."""
+    n = len(text or "")
+    return "short" if n < 60 else "medium" if n < 240 else "detailed"
+
+
+def upvote_band(votes: int) -> str:
+    """How many other users marked the review helpful (a signal of shared pain)."""
+    return "none" if votes <= 0 else "some" if votes < 10 else "many"
 
 
 def sentiment_from_rating(rating: int) -> str:
@@ -83,6 +104,11 @@ def load_run_frame(db: Database, run_id: str, cache: FrameCache | None = None) -
                 Insight.themes,
                 Insight.journey_stage,
                 Insight.emotion,
+                Insight.severity,
+                Insight.user_type,
+                Insight.churn_risk,
+                Insight.competitors,
+                Insight.accessibility,
             )
             .join(RunReview, RunReview.review_id == Review.id)
             .outerjoin(Insight, and_(Insight.review_id == Review.id, Insight.model_key == run.model_key))
@@ -111,6 +137,14 @@ def load_run_frame(db: Database, run_id: str, cache: FrameCache | None = None) -
                 "journey_stage": r.journey_stage,
                 "emotion": r.emotion,
                 "tagged": r.insight_id is not None,
+                "severity": r.severity,
+                "user_type": r.user_type,
+                "churn_risk": r.churn_risk,
+                "competitors": list(r.competitors or []),
+                "accessibility": None if r.accessibility is None else ("yes" if r.accessibility else "no"),
+                "detail": detail_band(r.content or ""),
+                "upvotes": upvote_band(int(r.thumbs_up or 0)),
+                "replied": "replied" if r.reply_content else "not_replied",
             }
         )
     df = pd.DataFrame.from_records(records, columns=COLUMNS)

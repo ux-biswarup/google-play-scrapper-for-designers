@@ -83,6 +83,29 @@ DIMENSIONS: dict[str, Dimension] = {
         ),
         Dimension("journey_stage", "Journey stage", "Where in the user journey the feedback belongs.", "journey_stage"),
         Dimension("emotion", "Emotion", "The reviewer's dominant emotion.", "emotion"),
+        Dimension("severity", "Severity", "How much the issue hurts the user: high, medium, low, none.", "severity"),
+        Dimension(
+            "user_type",
+            "User type",
+            "new_user, long_time_user, paying_user or unknown (from review text).",
+            "user_type",
+        ),
+        Dimension(
+            "churn_risk", "Churn risk", "left (uninstalled or quit), considering (may leave) or none.", "churn_risk"
+        ),
+        Dimension(
+            "competitor",
+            "Competitor",
+            "Other apps named as alternatives. A review can name several.",
+            "competitors",
+            multi=True,
+        ),
+        Dimension("accessibility", "Accessibility", "yes if the feedback is about accessibility.", "accessibility"),
+        Dimension("detail", "Review detail", "short (<60 characters), medium, or detailed (240+).", "detail"),
+        Dimension(
+            "upvotes", "Helpful votes", "none, some (1-9) or many (10+) helpful votes from other users.", "upvotes"
+        ),
+        Dimension("replied", "Developer reply", "replied or not_replied.", "replied"),
     )
 }
 

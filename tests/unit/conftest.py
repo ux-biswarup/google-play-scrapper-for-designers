@@ -21,7 +21,7 @@ TEMPLATES = [
     (1, "I can't log in anymore, so annoying"),
     (2, "The app crashes when I open the map"),
     (5, "I love the design, it is beautiful"),
-    (4, "Great app but please add dark mode"),
+    (4, "Great app but please add dark mode like Rival App"),
     (3, "It's ok"),
 ]
 
@@ -76,6 +76,21 @@ class FakeStore:
 
 
 def _fake_tag(text: str) -> dict:
+    """Keyword-based tags, including the v2+ fields (churn evidence must quote the review)."""
+    tags = _fake_core_tag(text)
+    lowered = text.lower()
+    tags["severity"] = (
+        "high" if "crash" in lowered else "medium" if tags["category"].strip().lower() == "bug" else "none"
+    )
+    tags["user_type"] = "long_time_user" if "update" in lowered else "unknown"
+    tags["churn_risk"] = "considering" if "annoying" in lowered else "none"
+    tags["churn_evidence"] = "so annoying" if "annoying" in lowered else ""
+    tags["competitors"] = ["Rival App", "Imaginary App"] if "dark mode" in lowered else []
+    tags["accessibility"] = "map" in lowered
+    return tags
+
+
+def _fake_core_tag(text: str) -> dict:
     lowered = text.lower()
     if "login" in lowered:
         return {

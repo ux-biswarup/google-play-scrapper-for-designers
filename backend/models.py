@@ -3,10 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base, utcnow
+
+# Version of the per-review AI tags. v2 added severity, user type, churn risk, competitors and accessibility;
+# v3 requires quoted evidence for churn and checks competitor names appear in the review.
+# Insights are cached per model *and* tag version, so older analyses keep working with the fields they have.
+TAG_VERSION = 3
 
 
 class RunStatus:
@@ -68,6 +73,7 @@ class Run(Base):
     output_language: Mapped[str] = mapped_column(String(32), default="English")
     provider: Mapped[str] = mapped_column(String(32))
     model: Mapped[str] = mapped_column(String(128))
+    tag_version: Mapped[int] = mapped_column(default=1, server_default=text("1"))
 
     status: Mapped[str] = mapped_column(String(16), default=RunStatus.QUEUED)
     stage: Mapped[str | None] = mapped_column(String(32))
@@ -92,7 +98,8 @@ class Run(Base):
 
     @property
     def model_key(self) -> str:
-        return f"{self.provider}:{self.model}"
+        base = f"{self.provider}:{self.model}"
+        return base if (self.tag_version or 1) == 1 else f"{base}#v{self.tag_version}"
 
 
 class RunReview(Base):
@@ -118,6 +125,12 @@ class Insight(Base):
     themes: Mapped[list[str]] = mapped_column(JSON, default=list)
     journey_stage: Mapped[str | None] = mapped_column(String(32))
     emotion: Mapped[str | None] = mapped_column(String(32))
+    # Tag version 2
+    severity: Mapped[str | None] = mapped_column(String(16))
+    user_type: Mapped[str | None] = mapped_column(String(24))
+    churn_risk: Mapped[str | None] = mapped_column(String(16))
+    competitors: Mapped[list[str] | None] = mapped_column(JSON)
+    accessibility: Mapped[bool | None]
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 

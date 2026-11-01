@@ -12,6 +12,11 @@ import { OverviewTab } from "./tabs/Overview";
 import { ProblemsTab } from "./tabs/Problems";
 import { TrendsTab } from "./tabs/Trends";
 import { ReviewsTab } from "./tabs/Reviews";
+import { FeedbackTab } from "./tabs/Feedback";
+import { JourneyTab } from "./tabs/Journey";
+import { EmotionsTab } from "./tabs/Emotions";
+import { SegmentsTab } from "./tabs/Segments";
+import { RisksTab } from "./tabs/Risks";
 
 const isActive = (run: Run) => run.status === "queued" || run.status === "running";
 
@@ -114,13 +119,70 @@ function Failed({ run }: { run: Run }) {
   );
 }
 
-const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "problems", label: "Problems" },
-  { id: "trends", label: "Trends" },
-  { id: "reviews", label: "Reviews" },
+const VIEW_GROUPS = [
+  {
+    label: "Understand",
+    views: [
+      { id: "overview", label: "Overview" },
+      { id: "problems", label: "Problems & priorities" },
+      { id: "feedback", label: "Bugs, requests, complaints" },
+      { id: "journey", label: "Journey map" },
+      { id: "emotions", label: "Emotions" },
+      { id: "segments", label: "Segments" },
+      { id: "risks", label: "Risks" },
+    ],
+  },
+  { label: "Track", views: [{ id: "trends", label: "Trends & what changed" }] },
+  { label: "Evidence", views: [{ id: "reviews", label: "Reviews" }] },
 ] as const;
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof VIEW_GROUPS)[number]["views"][number]["id"];
+const TABS: { id: TabId; label: string }[] = VIEW_GROUPS.flatMap((g) => [...g.views]);
+
+function ViewNav({ tab, onSelect }: { tab: TabId; onSelect: (id: TabId) => void }) {
+  return (
+    <nav aria-label="Analysis views" className="lg:sticky lg:top-6 lg:self-start">
+      {/* Wide screens: grouped vertical list. Narrow screens: one scrollable row. */}
+      <div className="hidden flex-col gap-5 lg:flex">
+        {VIEW_GROUPS.map((group) => (
+          <div key={group.label}>
+            <h2 className="mb-1 px-2 text-xs font-medium text-muted">{group.label}</h2>
+            <ul className="flex flex-col">
+              {group.views.map((v) => (
+                <li key={v.id}>
+                  <button
+                    onClick={() => onSelect(v.id)}
+                    aria-current={tab === v.id ? "page" : undefined}
+                    className={cx(
+                      "w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      tab === v.id ? "bg-ink font-medium text-paper" : "text-ink hover:bg-soft",
+                    )}
+                  >
+                    {v.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:hidden">
+        {TABS.map((v) => (
+          <button
+            key={v.id}
+            onClick={() => onSelect(v.id)}
+            aria-current={tab === v.id ? "page" : undefined}
+            className={cx(
+              "shrink-0 rounded-md px-3 py-1.5 text-sm",
+              tab === v.id ? "bg-ink font-medium text-paper" : "border border-line bg-panel text-ink",
+            )}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
 
 function Dashboard({ run }: { run: Run }) {
   const navigate = useNavigate();
@@ -145,7 +207,7 @@ function Dashboard({ run }: { run: Run }) {
   return (
     <div className="flex h-full min-h-0">
     <div className="min-w-0 flex-1 overflow-y-auto">
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    <div className="mx-auto max-w-7xl px-6 py-8">
       <header className="flex flex-wrap items-start gap-4">
         <AppIcon src={run.app.icon_url} title={title} size={56} />
         <div className="min-w-0 flex-1">
@@ -199,28 +261,19 @@ function Dashboard({ run }: { run: Run }) {
         </div>
       )}
 
-      <div role="tablist" aria-label="Analysis views" className="mt-6 flex gap-1 border-b border-line">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setParams({ tab: t.id })}
-            className={cx(
-              "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              tab === t.id ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-6" role="tabpanel">
-        {tab === "overview" && <OverviewTab run={run} />}
-        {tab === "problems" && <ProblemsTab run={run} />}
-        {tab === "trends" && <TrendsTab run={run} />}
-        {tab === "reviews" && <ReviewsTab run={run} />}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-8">
+        <ViewNav tab={tab} onSelect={(id) => setParams({ tab: id })} />
+        <div className="min-w-0">
+          {tab === "overview" && <OverviewTab run={run} />}
+          {tab === "problems" && <ProblemsTab run={run} />}
+          {tab === "feedback" && <FeedbackTab run={run} />}
+          {tab === "journey" && <JourneyTab run={run} />}
+          {tab === "emotions" && <EmotionsTab run={run} />}
+          {tab === "segments" && <SegmentsTab run={run} />}
+          {tab === "risks" && <RisksTab run={run} />}
+          {tab === "trends" && <TrendsTab run={run} />}
+          {tab === "reviews" && <ReviewsTab run={run} />}
+        </div>
       </div>
     </div>
     </div>

@@ -1,9 +1,12 @@
-import { Link } from "react-router";
+import { useMemo } from "react";
+import { Link, useNavigate } from "react-router";
+import type { Data, PlotMouseEvent } from "plotly.js";
 import { useQuery } from "@tanstack/react-query";
 import { Download, TrendingDown, TrendingUp } from "lucide-react";
 import { api, type Review, type Run, type Theme } from "../../lib/api";
 import { label, num, pct, plural, rating, shortDate } from "../../lib/format";
-import { Badge, EmptyState, Notice, Spinner, Stars } from "../../components/ui";
+import { Badge, EmptyState, Notice, Panel, Spinner, Stars } from "../../components/ui";
+import { Plot, useChartColors } from "../../components/Plot";
 
 export function Quote({ review }: { review: Review }) {
   return (
@@ -84,6 +87,77 @@ function ProblemRow({ theme, rank, maxImpact }: { theme: Theme; rank: number; ma
   );
 }
 
+/** Where each theme sits: how many people mention it vs how negative they are. */
+function PriorityMatrix({ themes }: { themes: Theme[] }) {
+  const colors = useChartColors();
+  const navigate = useNavigate();
+  const data = useMemo<Data[]>(() => {
+    const labelled = new Set(
+      [...themes].filter((t) => t.mentions >= 2).sort((a, b) => b.impact + b.mentions - (a.impact + a.mentions)).slice(0, 10).map((t) => t.theme),
+    );
+    const color = (t: Theme) => (t.trend === "rising" ? colors.neg : t.trend === "falling" ? colors.pos : colors.muted);
+    return [
+      {
+        type: "scatter",
+        mode: "text+markers",
+        x: themes.map((t) => t.reach * 100),
+        y: themes.map((t) => t.negative_share * 100),
+        // Label only the themes that matter most; the rest show their name on hover.
+        text: themes.map((t) => (labelled.has(t.theme) ? t.theme : "")),
+        hovertext: themes.map((t) => t.theme),
+        // Alternate label sides so neighbouring labels don't overlap.
+        textposition: themes.map((_, i) => (i % 2 ? "bottom center" : "top center")) as unknown as "top center",
+        textfont: { size: 10, color: colors.ink },
+        customdata: themes.map((t) => [t.mentions, t.trend]),
+        hovertemplate: "<b>%{hovertext}</b><br>%{x:.1f}% of reviews, %{y:.0f}% negative<br>%{customdata[0]} mentions, %{customdata[1]}<extra></extra>",
+        marker: {
+          size: themes.map((t) => 8 + Math.sqrt(t.mentions) * 4),
+          color: themes.map(color),
+          opacity: 0.75,
+          line: { width: 1, color: colors.ink },
+        },
+      },
+    ];
+  }, [themes, colors]);
+  const maxReach = Math.max(...themes.map((t) => t.reach * 100), 1);
+  const midReach = maxReach / 2;
+  const onClick = useMemo(
+    () => (e: PlotMouseEvent) => {
+      const theme = (e.points[0] as { hovertext?: string } | undefined)?.hovertext;
+      if (theme) navigate(`?tab=reviews&theme=${encodeURIComponent(String(theme))}`);
+    },
+    [navigate],
+  );
+  return (
+    <Panel title="Priority matrix">
+      <p className="-mt-1 mb-2 text-sm text-muted">
+        Right = many people mention it; up = mostly negative. Top right is where to act first. Red bubbles are growing.
+        Click a bubble to read its reviews.
+      </p>
+      <Plot
+        data={data}
+        label="Themes by how many reviews mention them and how negative those reviews are"
+        height={360}
+        onPointClick={onClick}
+        layout={{
+          xaxis: { title: { text: "Share of reviews mentioning it" }, ticksuffix: "%", range: [0, maxReach * 1.15], zeroline: false },
+          yaxis: { title: { text: "Negative reviews" }, ticksuffix: "%", range: [-5, 110], zeroline: false },
+          shapes: [
+            { type: "line", x0: midReach, x1: midReach, y0: -5, y1: 110, line: { color: colors.line, dash: "dot" } },
+            { type: "line", x0: 0, x1: maxReach * 1.15, y0: 50, y1: 50, line: { color: colors.line, dash: "dot" } },
+          ],
+          annotations: [
+            { x: maxReach * 1.12, y: 106, text: "Act first", showarrow: false, xanchor: "right", font: { color: colors.neg, size: 11 } },
+            { x: 0.5, y: 106, text: "Watch", showarrow: false, xanchor: "left", font: { color: colors.muted, size: 11 } },
+            { x: maxReach * 1.12, y: -2, text: "Protect", showarrow: false, xanchor: "right", font: { color: colors.pos, size: 11 } },
+          ],
+          margin: { t: 8, r: 8, b: 8, l: 8 },
+        }}
+      />
+    </Panel>
+  );
+}
+
 export function ProblemsTab({ run }: { run: Run }) {
   const board = useQuery({ queryKey: ["themes", run.id], queryFn: () => api.themes(run.id) });
   if (board.isLoading) return <Spinner />;
@@ -100,7 +174,11 @@ export function ProblemsTab({ run }: { run: Run }) {
       </EmptyState>
     );
 
+  const allThemes = [...problems, ...strengths.filter((s) => !problems.some((p) => p.theme === s.theme))];
+
   return (
+    <div className="flex flex-col gap-8">
+    {allThemes.length >= 3 && <PriorityMatrix themes={allThemes} />}
     <div className="grid gap-10 lg:grid-cols-[1fr_18rem]">
       <section aria-labelledby="problems-heading">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -148,6 +226,7 @@ export function ProblemsTab({ run }: { run: Run }) {
           </ul>
         )}
       </aside>
+    </div>
     </div>
   );
 }

@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from google_play_scraper.exceptions import ExtraHTTPError
 
 from .analytics.frame import FrameCache
-from .api import apps, auth, chat, connect, insights, providers, runs
+from .api import apps, auth, chat, connect, insights, providers, runs, views
 from .assistant.tools import ToolContext
 from .config import Settings, load_settings
 from .context import AppContext
@@ -101,6 +101,7 @@ def create_app(
         chat.router,
         connect.router,
         auth.router,
+        views.router,
     ):
         app.include_router(router, prefix="/api")
     app.mount("/mcp", mcp_http)

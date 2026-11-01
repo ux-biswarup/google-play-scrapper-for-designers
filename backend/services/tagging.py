@@ -23,6 +23,10 @@ JOURNEY_STAGES = (
     "other",
 )
 EMOTIONS = ("frustration", "anger", "confusion", "disappointment", "neutral", "satisfaction", "delight")
+SEVERITIES = ("high", "medium", "low", "none")
+USER_TYPES = ("new_user", "long_time_user", "paying_user", "unknown")
+CHURN_RISKS = ("left", "considering", "none")
+MAX_COMPETITORS = 3
 
 MAX_THEMES_PER_REVIEW = 3
 MAX_REVIEW_CHARS = 1500
@@ -40,8 +44,26 @@ TAG_SCHEMA = {
                     "themes": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_THEMES_PER_REVIEW},
                     "journey_stage": {"type": "string", "enum": list(JOURNEY_STAGES)},
                     "emotion": {"type": "string", "enum": list(EMOTIONS)},
+                    "severity": {"type": "string", "enum": list(SEVERITIES)},
+                    "user_type": {"type": "string", "enum": list(USER_TYPES)},
+                    "churn_risk": {"type": "string", "enum": list(CHURN_RISKS)},
+                    "churn_evidence": {"type": "string"},
+                    "competitors": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_COMPETITORS},
+                    "accessibility": {"type": "boolean"},
                 },
-                "required": ["id", "category", "themes", "journey_stage", "emotion"],
+                "required": [
+                    "id",
+                    "category",
+                    "themes",
+                    "journey_stage",
+                    "emotion",
+                    "severity",
+                    "user_type",
+                    "churn_risk",
+                    "churn_evidence",
+                    "competitors",
+                    "accessibility",
+                ],
             },
         }
     },
@@ -61,7 +83,18 @@ For every review return exactly one result with the same id:
   If the review only expresses a feeling without saying what about ("worst", "love it", "great game"),
   return []. Prefer the same wording for the same subject across reviews.
 - journey_stage: where in the user journey the feedback belongs.
-- emotion: the reviewer's dominant emotion."""
+- emotion: the reviewer's dominant emotion.
+- severity: how much the issue hurts the user. high: blocks use, loses data or money, crashes; medium: clearly
+  degrades the experience; low: minor annoyance; none: no problem reported (e.g. praise).
+- user_type: new_user (just installed, first days), long_time_user (mentions using it for months or years),
+  paying_user (mentions paying, subscriptions or purchases), otherwise unknown. Don't guess.
+- churn_risk: left only if they say they uninstalled, quit, cancelled or stopped using it; considering only if
+  they explicitly say they will stop, uninstall, cancel or switch. Anger or a low rating alone is none.
+- churn_evidence: for left or considering, copy the exact words from the review that say so; otherwise "".
+- competitors: specific named apps or products mentioned as alternatives or comparisons (e.g. "Monopoly Go"),
+  never generic phrases like "other games" or "other apps"; else [].
+- accessibility: true only if the feedback is about accessibility (vision, text size, contrast, colour
+  blindness, screen readers, hearing, motor or cognitive difficulty)."""
 
 
 @dataclass(frozen=True)
@@ -77,6 +110,11 @@ class TagResult:
     themes: list[str]
     journey_stage: str
     emotion: str
+    severity: str = "none"
+    user_type: str = "unknown"
+    churn_risk: str = "none"
+    competitors: list[str] = field(default_factory=list)
+    accessibility: bool = False
 
 
 @dataclass
@@ -95,7 +133,31 @@ def normalize_theme(label: str) -> str:
     return " ".join(str(label).strip().strip(".").lower().split())[:60]
 
 
-def _coerce(item: dict) -> TagResult:
+_GENERIC_WORDS = {"other", "others", "another", "similar", "any", "some", "games", "apps", "app", "game", "ones"}
+
+
+def _is_named_product(name: str) -> bool:
+    """Reject vague phrases ("other games", "similar apps") that models sometimes return as competitors."""
+    words = name.lower().split()
+    return bool(words) and not all(w in _GENERIC_WORDS for w in words) and words[0] not in {"other", "another"}
+
+
+def _squash(text: str) -> str:
+    return " ".join(str(text).lower().split())
+
+
+def _verified_churn(item: dict, text: str) -> str:
+    """Keep a churn tag only when the model quotes words that really are in the review."""
+    risk = str(item.get("churn_risk") or "").strip().lower()
+    if risk not in ("left", "considering"):
+        return "none"
+    if not text:
+        return risk
+    evidence = _squash(item.get("churn_evidence") or "")
+    return risk if len(evidence) >= 4 and evidence in _squash(text) else "none"
+
+
+def _coerce(item: dict, text: str = "") -> TagResult:
     def pick(value, allowed, default):
         value = str(value or "").strip().lower()
         return value if value in allowed else default
@@ -105,11 +167,22 @@ def _coerce(item: dict) -> TagResult:
         label = normalize_theme(raw)
         if label and label not in themes:
             themes.append(label)
+    competitors: list[str] = []
+    for raw in item.get("competitors") or []:
+        name = " ".join(str(raw).strip().split())[:40]
+        mentioned = not text or _squash(name) in _squash(text)  # must really appear in the review
+        if _is_named_product(name) and mentioned and name.lower() not in {c.lower() for c in competitors}:
+            competitors.append(name)
     return TagResult(
         category=pick(item.get("category"), CATEGORIES, "other"),
         themes=themes[:MAX_THEMES_PER_REVIEW],
         journey_stage=pick(item.get("journey_stage"), JOURNEY_STAGES, "other"),
         emotion=pick(item.get("emotion"), EMOTIONS, "neutral"),
+        severity=pick(item.get("severity"), SEVERITIES, "none"),
+        user_type=pick(item.get("user_type"), USER_TYPES, "unknown"),
+        churn_risk=_verified_churn(item, text),
+        competitors=competitors[:MAX_COMPETITORS],
+        accessibility=item.get("accessibility") is True,
     )
 
 
@@ -135,7 +208,7 @@ async def tag_batch(
         except ValueError:
             continue
         if 0 <= index < len(batch):
-            results[batch[index].key] = _coerce(item)
+            results[batch[index].key] = _coerce(item, batch[index].text)
     return results, usage
 
 
@@ -154,7 +227,7 @@ async def tag_reviews(
     outcome = TagOutcome()
     empty = [r for r in reviews if not r.text.strip()]
     for r in empty:  # star-only reviews: nothing for the model to read
-        outcome.results[r.key] = TagResult("other", [], "other", "neutral")
+        outcome.results[r.key] = TagResult("other", [], "other", "neutral")  # defaults for the v2 fields
     todo = [r for r in reviews if r.text.strip()]
     batches = [todo[i : i + batch_size] for i in range(0, len(todo), batch_size)]
     total = len(reviews)

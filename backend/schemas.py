@@ -86,6 +86,7 @@ class RunOut(BaseModel):
     output_language: str
     provider: str
     model: str
+    tag_version: int = 1
     review_count: int
     tagged_count: int
     failed_count: int

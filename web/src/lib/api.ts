@@ -66,6 +66,8 @@ export type Run = {
   output_language: string;
   provider: string;
   model: string;
+  /** 1: original tags; 2+: severity, user type, churn risk, competitors, accessibility. */
+  tag_version: number;
   review_count: number;
   tagged_count: number;
   failed_count: number;
@@ -371,4 +373,93 @@ export const authApi = {
   chatgptSignOut: () => request<{ revoked: boolean }>("/auth/chatgpt/signout", { method: "POST" }),
   openrouterExchange: (code: string, codeVerifier: string) =>
     request<{ key: string }>("/auth/openrouter/exchange", post({ code, code_verifier: codeVerifier })),
+};
+
+// ---- Decision views ---------------------------------------------------------------------------
+
+export type Count = { value: string; count: number; share: number };
+export type ReviewLite = Review;
+
+export type BoardItem = {
+  theme: string;
+  mentions: number;
+  helpful_votes: number;
+  avg_rating: number;
+  high_severity_share: number | null;
+  trend: "rising" | "falling" | "steady";
+  versions: Count[];
+  first_seen: string | null;
+  quotes: Review[];
+};
+export type Board = { count: number; share: number; trend: string; severity: Count[]; items: BoardItem[] };
+export type FeedbackBoards = {
+  total_tagged: number;
+  has_severity: boolean;
+  boards: Record<"bug" | "feature_request" | "ux_friction" | "complaint", Board>;
+};
+
+export type JourneyStage = {
+  stage: string;
+  reviews: number;
+  share: number;
+  avg_rating: number;
+  negative_share: number;
+  pain: number;
+  emotions: Count[];
+  problems: { theme: string; mentions: number; negative_share: number }[];
+  praise: { theme: string; mentions: number; negative_share: number }[];
+  quote: Review | null;
+};
+export type JourneyMap = { total_tagged: number; worst_stage: string | null; stages: JourneyStage[] };
+
+export type EmotionsView = {
+  distribution: Count[];
+  matrix: { theme: string; counts: Record<string, number> }[];
+  grain: Grain;
+  series: ({ date: string; total: number } & Record<string, number | string>)[];
+  meaning: Record<string, string>;
+  quotes: Record<string, Review[]>;
+};
+
+export type Segment = {
+  value: string;
+  reviews: number;
+  share: number;
+  avg_rating: number;
+  negative_share: number;
+  feedback_types: Count[];
+  top_themes: { theme: string; mentions: number; share: number }[];
+  distinctive_themes: { theme: string; mentions: number; lift: number }[];
+  quote: Review | null;
+};
+export type SegmentsView = {
+  by: string;
+  label: string;
+  available: { id: string; label: string; needs_reanalysis: boolean }[];
+  needs_reanalysis: boolean;
+  segments: Segment[];
+};
+
+export type RisksView = {
+  available: boolean;
+  total_tagged: number;
+  churn: {
+    left: number;
+    considering: number;
+    share: number;
+    trend: string;
+    themes: { theme: string; mentions: number }[];
+    by_user_type: Count[];
+    quotes: Review[];
+  };
+  competitors: { name: string; mentions: number; avg_rating: number; switching: number; quote: Review | null }[];
+  payments: { count: number; share: number; themes: { theme: string; mentions: number }[]; quotes: Review[] };
+};
+
+export const viewsApi = {
+  feedback: (id: string) => request<FeedbackBoards>(`/runs/${id}/views/feedback`),
+  journey: (id: string) => request<JourneyMap>(`/runs/${id}/views/journey`),
+  emotions: (id: string) => request<EmotionsView>(`/runs/${id}/views/emotions`),
+  segments: (id: string, by: string) => request<SegmentsView>(`/runs/${id}/views/segments${query({ by })}`),
+  risks: (id: string) => request<RisksView>(`/runs/${id}/views/risks`),
 };

@@ -15,7 +15,7 @@ from typing import Any
 from pydantic import Field, create_model
 from sqlalchemy import or_, select
 
-from ..analytics import insights, trends
+from ..analytics import insights, trends, views
 from ..analytics.frame import FrameCache, load_run_frame
 from ..analytics.metrics import MetricsQuery, auto_grain, catalog, run_query
 from ..db import Database
@@ -260,6 +260,49 @@ def compare_periods(ctx: ToolContext, run_id: str, pivot: str, mode: str = "vers
     """Compare reviews before and after a release (mode="version", pivot="2.3.0") or a date
     (mode="date", pivot="2026-03-01"): rating, negative share, new and rising themes."""
     return trends.compare(_frame(ctx, run_id), mode, pivot)
+
+
+@tool
+def get_feedback_types(ctx: ToolContext, run_id: str, limit: int = 6) -> dict:
+    """Boards of bugs (what to fix), feature requests (what to build), UX friction (what to redesign) and
+    complaints (what to reconsider), each ranked with mentions, severity, affected versions and quotes."""
+    data = views.feedback_boards(_frame(ctx, run_id), limit=min(limit, 12))
+    for board in data["boards"].values():
+        for item in board["items"]:
+            item["quotes"] = [_review(q, QUOTE_CHARS) for q in item["quotes"][:1]]
+    return data
+
+
+@tool
+def get_journey_map(ctx: ToolContext, run_id: str) -> dict:
+    """The user journey stage by stage (onboarding, login, core use, payments, support...): volume, rating,
+    negative share, main emotions, top problems and a quote, plus the most painful stage."""
+    data = views.journey_map(_frame(ctx, run_id))
+    for stage in data["stages"]:
+        stage["quote"] = _review(stage["quote"], QUOTE_CHARS) if stage["quote"] else None
+        stage["emotions"] = stage["emotions"][:3]
+    return data
+
+
+@tool
+def get_segments(ctx: ToolContext, run_id: str, by: str = "user_type") -> dict:
+    """Compare reviewer groups. by: sentiment, user_type (new, long-time, paying), app_version, detail
+    (short vs detailed reviews), upvotes (how many others agreed) or replied (developer replied or not)."""
+    data = views.segments_view(_frame(ctx, run_id), by)
+    for segment in data["segments"]:
+        segment["quote"] = _review(segment["quote"], QUOTE_CHARS) if segment["quote"] else None
+    return data
+
+
+@tool
+def get_risks(ctx: ToolContext, run_id: str) -> dict:
+    """Early warnings: reviewers who left or may leave (with why), competitors they name, and payment problems."""
+    data = views.risks_view(_frame(ctx, run_id))
+    data["churn"]["quotes"] = [_review(q, QUOTE_CHARS) for q in data["churn"]["quotes"]]
+    data["payments"]["quotes"] = [_review(q, QUOTE_CHARS) for q in data["payments"]["quotes"]]
+    for c in data["competitors"]:
+        c["quote"] = _review(c["quote"], QUOTE_CHARS) if c["quote"] else None
+    return data
 
 
 def run_tool(ctx: ToolContext, name: str, args: dict) -> Any:

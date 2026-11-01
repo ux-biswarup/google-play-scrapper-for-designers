@@ -70,6 +70,10 @@ def step_label(name: str, args: dict[str, Any]) -> str:
         "get_overview": "Read the overview",
         "get_trends": "Checked trends over time",
         "describe_metrics": "Looked up metric definitions",
+        "get_feedback_types": "Read the bug, request and complaint boards",
+        "get_journey_map": "Read the journey map",
+        "get_segments": f"Compared segments by {str(args.get('by', 'user type')).replace('_', ' ')}",
+        "get_risks": "Checked churn, competitor and payment risks",
     }.get(name, name.replace("_", " ").capitalize())
 
 

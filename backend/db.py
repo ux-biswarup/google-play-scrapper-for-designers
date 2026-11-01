@@ -5,7 +5,8 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect
+from sqlalchemy import text as sql_text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -51,6 +52,23 @@ class Database:
         from . import models  # noqa: F401  (register tables)
 
         Base.metadata.create_all(self.engine)
+        self._add_missing_columns()
+
+    def _add_missing_columns(self) -> None:
+        """Lightweight migration: add new nullable/defaulted columns to tables created by older versions."""
+        inspector = inspect(self.engine)
+        with self.engine.begin() as conn:
+            for table in Base.metadata.sorted_tables:
+                existing = {c["name"] for c in inspector.get_columns(table.name)}
+                for column in table.columns:
+                    if column.name in existing:
+                        continue
+                    ddl = (
+                        f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column.type.compile(self.engine.dialect)}"
+                    )
+                    if column.server_default is not None:
+                        ddl += f" DEFAULT {column.server_default.arg.text}"
+                    conn.execute(sql_text(ddl))
 
     @contextmanager
     def session(self) -> Iterator[Session]:

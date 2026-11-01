@@ -38,6 +38,9 @@ Put labels that only express a feeling or are too vague to act on ("bad experien
 Every label number must appear exactly once: in one theme or in discard."""
 
 
+_CATCH_ALL = {"discard", "discarded", "other", "others", "misc", "miscellaneous", "general", "vague", "none"}
+
+
 async def build_theme_map(
     provider: LLMProvider, label_counts: Counter, *, output_language: str = "English"
 ) -> tuple[dict[str, str], Usage, str | None]:
@@ -73,6 +76,8 @@ async def build_theme_map(
         name = " ".join(str(theme.get("name") or "").lower().split())[:60]
         if not name:
             continue
+        if name in _CATCH_ALL:  # models sometimes put vague labels in a theme called "discard" or "other"
+            name = ""
         for member in theme.get("members") or []:
             try:
                 index = int(member)

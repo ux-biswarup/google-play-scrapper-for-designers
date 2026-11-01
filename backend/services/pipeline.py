@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 
 from ..config import Settings
 from ..db import Database, utcnow
-from ..models import App, Insight, Review, Run, RunReview, RunStatus
+from ..models import TAG_VERSION, App, Insight, Review, Run, RunReview, RunStatus
 from ..providers import LLMConfig, LLMError, LLMProvider, Usage
 from .play_store import AppDetails, AppNotFound, PlayStoreClient, StoreReview
 from .tagging import ReviewInput, TagResult, tag_reviews
@@ -65,6 +65,7 @@ class AnalysisPipeline:
                 output_language=req.output_language,
                 provider=req.llm.provider,
                 model=req.llm.model,
+                tag_version=TAG_VERSION,
                 status=RunStatus.QUEUED,
                 message="Waiting to start…",
             )
@@ -127,7 +128,8 @@ class AnalysisPipeline:
             review_ids = self._save_reviews(run, reviews)
             self._check(cancel)
 
-            todo = self._untagged(review_ids, llm.model_key)
+            key = run.model_key  # model + tag version
+            todo = self._untagged(review_ids, key)
             reused = len(review_ids) - len(todo)
             note = f" ({reused} already analyzed with this model)" if reused else ""
             self._update(
@@ -142,7 +144,7 @@ class AnalysisPipeline:
             provider = self.provider_factory(llm)
 
             async def on_batch(results: dict[int, TagResult], done: int, _total: int, usage: Usage) -> None:
-                self._save_insights(results, llm.model_key)
+                self._save_insights(results, key)
                 self._update(
                     run_id,
                     progress_done=reused + done,
@@ -168,7 +170,7 @@ class AnalysisPipeline:
             self._update(run_id, stage="grouping_themes", message="Grouping similar themes…")
             usage = outcome.usage
             theme_map, grouping_usage, warning = await build_theme_map(
-                provider, self._label_counts(review_ids, llm.model_key), output_language=run.output_language
+                provider, self._label_counts(review_ids, key), output_language=run.output_language
             )
             usage.add(grouping_usage)
 
@@ -305,6 +307,11 @@ class AnalysisPipeline:
                     themes=t.themes,
                     journey_stage=t.journey_stage,
                     emotion=t.emotion,
+                    severity=t.severity,
+                    user_type=t.user_type,
+                    churn_risk=t.churn_risk,
+                    competitors=t.competitors,
+                    accessibility=t.accessibility,
                 )
                 for rid, t in results.items()
                 if rid not in have
