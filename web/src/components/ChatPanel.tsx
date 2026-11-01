@@ -412,6 +412,18 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const tabRefs = useRef(new Map<TabId, HTMLButtonElement>());
+  const tabStrip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const tab = tabRefs.current.get(active)?.parentElement;
+    const strip = tabStrip.current;
+    if (!tab || !strip) return;
+    // Scroll only the tab row (not the page), just enough to show the whole tab.
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const left = tab.offsetLeft - strip.offsetLeft;
+    if (left < strip.scrollLeft) strip.scrollTo({ left: left - 8, behavior: smooth ? "smooth" : "auto" });
+    else if (left + tab.offsetWidth > strip.scrollLeft + strip.clientWidth)
+      strip.scrollTo({ left: left + tab.offsetWidth - strip.clientWidth + 12, behavior: smooth ? "smooth" : "auto" });
+  }, [active, tabs.open.length]);
 
   const chat = useQuery({
     queryKey: ["chat-session", run.id, active],
@@ -516,17 +528,26 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
 
   return (
     <aside aria-label={`Assistant for ${appName}`} className="flex h-full flex-col bg-panel">
-      {/* One row: open chats as tabs, then New chat, History and Close. */}
-      <header className="flex items-end gap-1 border-b border-line pt-2 pl-2">
-        <div role="tablist" aria-label="Open chats" onKeyDown={onTabKey} className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto [scrollbar-width:none]">
+      {/* One row on a tinted ribbon: open chats as compact tags (the active one is white like the chat below),
+          then New chat, History and Close. */}
+      <header className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-soft pl-1.5">
+        <div
+          ref={tabStrip}
+          role="tablist"
+          aria-label="Open chats"
+          onKeyDown={onTabKey}
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,black_6px,black_calc(100%-10px),transparent)]"
+        >
           {tabs.open.map((id) => {
             const selected = id === active && view === "chat";
             return (
               <div
                 key={id}
                 className={cx(
-                  "group relative flex max-w-[11rem] shrink-0 items-center rounded-t-md border-x border-t text-sm",
-                  selected ? "-mb-px border-line bg-panel" : "border-transparent text-muted hover:bg-soft hover:text-ink",
+                  "group flex h-7 max-w-[10rem] shrink-0 items-center rounded-md text-[13px] transition-colors",
+                  selected
+                    ? "bg-panel text-ink shadow-sm ring-1 ring-line"
+                    : "text-muted hover:bg-panel/60 hover:text-ink",
                 )}
               >
                 <button
@@ -542,7 +563,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                     setView("chat");
                   }}
                   title={titleOf(id)}
-                  className="flex min-w-0 items-center gap-1.5 py-2 pr-1 pl-3"
+                  className="flex h-full min-w-0 items-center gap-1.5 rounded-md pr-0.5 pl-2.5 focus-visible:outline-offset-0"
                 >
                   {busy[id] && <Loader2 className="size-3 shrink-0 animate-spin" aria-label="Answering" />}
                   <span className={cx("truncate", selected && "font-medium")}>{titleOf(id)}</span>
@@ -552,7 +573,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                   aria-label={`Close tab “${titleOf(id)}”`}
                   title="Close tab (the chat stays in history)"
                   className={cx(
-                    "mr-1 grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-soft hover:text-ink",
+                    "mr-1 grid size-4 shrink-0 place-items-center rounded-sm text-muted hover:bg-soft hover:text-ink",
                     !selected && "opacity-0 group-hover:opacity-100 focus:opacity-100",
                   )}
                 >
@@ -562,8 +583,8 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
             );
           })}
         </div>
-        <div className="mb-1 flex shrink-0 items-center gap-0.5 pr-2">
-          <button onClick={newChat} title="New chat" className="grid size-8 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink">
+        <div className="flex shrink-0 items-center gap-0.5 pr-1.5">
+          <button onClick={newChat} title="New chat" className="grid size-7 place-items-center rounded-md text-muted hover:bg-panel hover:text-ink">
             <SquarePen className="size-4" aria-hidden />
             <span className="sr-only">New chat</span>
           </button>
@@ -572,14 +593,14 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
             aria-pressed={view === "history"}
             title="Chat history"
             className={cx(
-              "grid size-8 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink",
-              view === "history" && "bg-soft text-ink",
+              "grid size-7 place-items-center rounded-md text-muted hover:bg-panel hover:text-ink",
+              view === "history" && "bg-panel text-ink shadow-sm ring-1 ring-line",
             )}
           >
             <History className="size-4" aria-hidden />
             <span className="sr-only">Chat history</span>
           </button>
-          <button onClick={onClose} title="Close assistant" className="grid size-8 place-items-center rounded-md text-muted hover:bg-soft hover:text-ink">
+          <button onClick={onClose} title="Close assistant" className="grid size-7 place-items-center rounded-md text-muted hover:bg-panel hover:text-ink">
             <X className="size-4" aria-hidden />
             <span className="sr-only">Close assistant</span>
           </button>
@@ -666,7 +687,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                 to ask questions about {appName}.
               </div>
             ) : (
-              <div className="rounded-xl border border-line bg-paper shadow-sm transition-colors focus-within:border-ink focus-within:ring-2 focus-within:ring-ink/10">
+              <div className="rounded-2xl border border-muted/35 bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_16px_-6px_rgb(0_0_0/0.08)] transition-[border-color,box-shadow] hover:border-muted/60 focus-within:border-ink focus-within:ring-4 focus-within:ring-ink/5">
                 {/* The whole composer shows focus (border and ring), so the text box itself needs no outline. */}
                 <label htmlFor="chat-input" className="sr-only">
                   Ask about {appName}
@@ -680,12 +701,12 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                   onKeyDown={onKeyDown}
                   placeholder={`Ask about ${appName}'s reviews`}
                   aria-describedby="chat-input-hint"
-                  className="block max-h-48 min-h-12 w-full resize-none bg-transparent px-3.5 pt-3 pb-1 text-[0.95rem] leading-relaxed outline-none [field-sizing:content] placeholder:text-muted focus-visible:outline-none"
+                  className="block max-h-48 min-h-12 w-full resize-none bg-transparent px-4 pt-3 pb-1 text-[0.95rem] leading-relaxed text-ink outline-none [field-sizing:content] placeholder:text-muted/90 focus-visible:outline-none"
                 />
                 <div className="flex items-center gap-1.5 px-2 pb-2">
                   <span
                     title={`Answers use only the ${run.review_count} reviews in this analysis of ${appName}`}
-                    className="inline-flex min-w-0 items-center gap-1 rounded-md bg-soft px-2 py-1 text-xs text-muted"
+                    className="inline-flex min-w-0 items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-muted"
                   >
                     <ScanSearch className="size-3.5 shrink-0" aria-hidden />
                     <span className="truncate">This analysis only</span>
@@ -693,7 +714,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                   <Link
                     to="/settings"
                     title="Change AI model"
-                    className="inline-flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-soft hover:text-ink"
+                    className="inline-flex min-w-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs text-muted hover:bg-soft hover:text-ink"
                   >
                     <span className="truncate">{provider?.id === "chatgpt" ? "ChatGPT plan" : modelLabel}</span>
                   </Link>
@@ -718,7 +739,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                       type="submit"
                       disabled={!draft.trim() || over}
                       title="Send (Enter)"
-                      className="grid size-8 place-items-center rounded-full bg-ink text-paper transition-opacity hover:opacity-90 disabled:opacity-30"
+                      className="grid size-8 place-items-center rounded-full bg-ink text-paper transition-colors hover:opacity-90 disabled:bg-soft disabled:text-muted disabled:hover:opacity-100"
                     >
                       <ArrowUp className="size-4" aria-hidden />
                       <span className="sr-only">Send</span>
