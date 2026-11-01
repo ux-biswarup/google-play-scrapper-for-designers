@@ -5,7 +5,6 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   ArrowUp,
-  ArrowUpRight,
   Check,
   Copy,
   History,
@@ -814,7 +813,6 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                                 {s.tag}
                               </span>
                             </span>
-                            <ArrowUpRight className="mt-0.5 size-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
                           </button>
                         </li>
                       ))}
