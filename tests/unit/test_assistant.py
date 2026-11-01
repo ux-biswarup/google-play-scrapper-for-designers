@@ -149,6 +149,25 @@ def test_chat_errors_are_streamed_not_raised(client, provider_failure):
     assert client.post("/api/runs/missing/chat/sessions").status_code == 404
 
 
+def test_failed_answers_are_saved_and_left_out_when_retrying(client, provider_failure, llm_calls):
+    from backend.providers import LLMError
+
+    run_id = _finished_run(client)
+    chat_id = _new_chat(client, run_id)
+    provider_failure["error"] = LLMError("OpenAI rejected the API key.", fatal=True)
+    _ask(client, run_id, chat_id, "What hurts most?")
+
+    # After a reload the chat still says why there's no answer.
+    turns = client.get(f"/api/runs/{run_id}/chat/sessions/{chat_id}").json()["turns"]
+    assert turns[0]["text"] == "What hurts most?"
+    assert turns[1]["error"] == "OpenAI rejected the API key." and turns[1]["text"] == ""
+
+    # Retrying sends the model only the new question, not the failed one or the error.
+    provider_failure.clear()
+    _ask(client, run_id, chat_id, "What hurts most?")
+    assert llm_calls["chat_history_sizes"][0] == 1
+
+
 def test_mcp_server_serves_the_same_tools(client):
     run_id = _finished_run(client)
     app_ctx = client.app.state.ctx

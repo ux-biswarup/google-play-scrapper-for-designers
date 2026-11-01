@@ -103,6 +103,19 @@ def _history(ctx: AppContext, session_id: str) -> list[ChatMessage]:
     ]
 
 
+def for_model(history: list[ChatMessage]) -> list[ChatMessage]:
+    """What the model sees: saved errors are for people, and a question whose answer failed is left out too, so a
+    retry doesn't send the same question twice in a row."""
+    keep: list[ChatMessage] = []
+    for i, m in enumerate(history):
+        if m.role == "error":
+            continue
+        if m.role == "user" and i + 1 < len(history) and history[i + 1].role == "error":
+            continue
+        keep.append(m)
+    return keep
+
+
 def _save(ctx: AppContext, chat: ChatSession, messages: list[ChatMessage]) -> None:
     now = utcnow()
     with ctx.db.session() as s:
@@ -171,7 +184,9 @@ def transcript(history: list[ChatMessage]) -> list[dict]:
         if not turns or turns[-1]["role"] != "assistant":
             turns.append({"role": "assistant", "text": "", "steps": [], "reviews": {}})
         turn = turns[-1]
-        if m.role == "assistant":
+        if m.role == "error":
+            turn["error"] = m.content
+        elif m.role == "assistant":
             turn["text"] += m.content
             for call in m.tool_calls:
                 labels[call.id] = step_label(call.name, call.arguments)
@@ -251,7 +266,7 @@ async def send_message(
     if not llm.model:
         raise HTTPException(400, "Choose an AI model in settings first.")
     provider = ctx.provider_factory(llm)  # raises LLMError (400) for a missing key or unknown provider
-    history = _history(ctx, session_id)  # this chat only: other chats and other analyses are never included
+    history = for_model(_history(ctx, session_id))  # this chat only: never other chats or other analyses
     question = ChatMessage("user", body.message.strip())
     system = _system_prompt(ctx, run)
     if not any(m.role == "user" for m in history) and chat.title == "New chat":
@@ -261,6 +276,7 @@ async def send_message(
 
     async def stream():
         produced: list[ChatMessage] = []
+        error: str | None = None
         try:
             async for event in run_agent(
                 provider,
@@ -272,12 +288,17 @@ async def send_message(
             ):
                 yield f"data: {json.dumps(event, default=str, ensure_ascii=False)}\n\n"
         except LLMError as exc:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+            error = str(exc)
+            yield f"data: {json.dumps({'type': 'error', 'message': error})}\n\n"
         except Exception as exc:  # noqa: BLE001 - report instead of dropping the stream
             log.exception("Chat failed for run %s", run_id)
-            yield f"data: {json.dumps({'type': 'error', 'message': f'Unexpected error: {exc}'})}\n\n"
+            error = f"Unexpected error: {exc}"
+            yield f"data: {json.dumps({'type': 'error', 'message': error})}\n\n"
         finally:
-            # Save what was produced, even if the user stopped the reply part-way.
+            # Save what was produced, even if the user stopped the reply part-way, and why it failed, so the chat
+            # still explains itself after a reload.
+            if error:
+                produced.append(ChatMessage("error", error))
             if produced:
                 _save(ctx, chat, produced)
             await provider.aclose()

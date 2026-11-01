@@ -11,6 +11,7 @@ import {
   Loader2,
   MessageSquare,
   Pencil,
+  RotateCcw,
   ScanSearch,
   Square,
   SquarePen,
@@ -79,7 +80,17 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function AssistantMessage({ turn, index, streaming }: { turn: AssistantTurn; index: number; streaming: boolean }) {
+function AssistantMessage({
+  turn,
+  index,
+  streaming,
+  onRetry,
+}: {
+  turn: AssistantTurn;
+  index: number;
+  streaming: boolean;
+  onRetry?: () => void;
+}) {
   const { markdown, order } = useMemo(() => withCitations(turn.text), [turn.text]);
   const anchor = (id: string) => `cite-${index}-${id}`;
   const components: Components = {
@@ -131,7 +142,20 @@ function AssistantMessage({ turn, index, streaming }: { turn: AssistantTurn; ind
       ) : (
         streaming && <Loader2 className="size-4 animate-spin text-muted" aria-label="Thinking" />
       )}
-      {turn.error && <Notice tone="error" title="The assistant stopped">{turn.error}</Notice>}
+      {turn.error && (
+        <div className="flex flex-col items-start gap-2">
+          <Notice tone="error" title="The assistant stopped">{turn.error}</Notice>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-sm hover:bg-soft"
+            >
+              <RotateCcw className="size-3.5" aria-hidden /> Try again
+            </button>
+          )}
+        </div>
+      )}
       {!streaming && order.length > 0 && (
         <section aria-label="Evidence">
           <h4 className="mb-2 text-xs font-medium text-muted">Evidence</h4>
@@ -434,6 +458,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
     show(reply);
     setBusy((b) => ({ ...b, [id]: true }));
     const controller = new AbortController();
+    let savedError = false; // errors reported in the stream are saved with the chat; network errors aren't
     try {
       if (isNew(tab)) {
         // Save the chat on its first question, then move this tab's state to the saved id.
@@ -444,6 +469,7 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
       }
       aborts.current.set(id, controller);
       for await (const event of chatApi.send(run.id, id, message, toLLMConfig(connection), controller.signal)) {
+        if (event.type === "error") savedError = true;
         reply = applyEvent(reply, event);
         show(reply);
       }
@@ -459,8 +485,8 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
         await queryClient.invalidateQueries({ queryKey: ["chat-session", run.id, id] });
         queryClient.invalidateQueries({ queryKey: ["chat-sessions", run.id] });
       }
-      // Keep a failed reply visible (errors are not saved); otherwise show the saved transcript.
-      setPending((p) => ({ ...p, [id]: reply.error ? (p[id] ?? []) : [] }));
+      // Show the saved transcript; keep a failed reply on screen only when the server couldn't save it.
+      setPending((p) => ({ ...p, [id]: reply.error && !savedError ? (p[id] ?? []) : [] }));
     }
   }
 
@@ -607,7 +633,17 @@ export function ChatPanel({ run, onClose }: { run: Run; onClose: () => void }) {
                       {turn.text}
                     </p>
                   ) : (
-                    <AssistantMessage key={i} turn={turn} index={i} streaming={isBusy && i === turns.length - 1} />
+                    <AssistantMessage
+                      key={i}
+                      turn={turn}
+                      index={i}
+                      streaming={isBusy && i === turns.length - 1}
+                      onRetry={
+                        turn.error && i === turns.length - 1 && !isBusy && ready && turns[i - 1]?.role === "user"
+                          ? () => send(turns[i - 1].text)
+                          : undefined
+                      }
+                    />
                   ),
                 )}
               </div>

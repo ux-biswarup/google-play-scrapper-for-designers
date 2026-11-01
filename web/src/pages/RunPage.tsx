@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Columns3, ExternalLink, Loader2, MessageSquareText, RotateCcw, Trash2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { countryName } from "../lib/locales";
 import { AppIcon } from "../components/Shell";
 import { ChatPanel } from "../components/ChatPanel";
 import { MoreMenu } from "../components/menu";
+import { ResizeHandle, usePanelWidth } from "../components/ResizeHandle";
 import { Button, Notice, Spinner, cx } from "../components/ui";
 import { OverviewTab } from "./tabs/Overview";
 import { ProblemsTab } from "./tabs/Problems";
@@ -218,6 +219,7 @@ function Dashboard({ run }: { run: Run }) {
   const title = run.app.title ?? run.app.store_id;
   const legacy = run.provider === "legacy";
   const [chatOpen, setChatOpen] = useState(() => localStorage.getItem("ri.chat-open") === "1");
+  const [chatWidth, setChatWidth, chatLimits] = usePanelWidth("ri.chat-width");
   const toggleChat = (open: boolean) => {
     localStorage.setItem("ri.chat-open", open ? "1" : "0");
     setChatOpen(open);
@@ -322,7 +324,18 @@ function Dashboard({ run }: { run: Run }) {
     </div>
     </div>
     {chatOpen && (
-      <div className="fixed inset-0 z-40 lg:static lg:z-auto lg:w-[26rem] lg:shrink-0 lg:border-l lg:border-line print:hidden">
+      <div
+        style={{ "--chat-width": `${chatWidth}px` } as CSSProperties}
+        className="fixed inset-0 z-40 lg:relative lg:inset-auto lg:z-auto lg:w-(--chat-width) lg:shrink-0 lg:border-l lg:border-line print:hidden"
+      >
+        <ResizeHandle
+          label="Resize assistant"
+          width={chatWidth}
+          onResize={setChatWidth}
+          min={chatLimits.min}
+          max={chatLimits.max}
+          onReset={chatLimits.reset}
+        />
         {/* Keyed by analysis: switching apps starts the assistant fresh, with that analysis's own chats. */}
         <ChatPanel key={run.id} run={run} onClose={() => toggleChat(false)} />
       </div>
