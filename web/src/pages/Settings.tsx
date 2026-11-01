@@ -42,7 +42,7 @@ export function SettingsPage() {
   );
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
-  const ids = { key: useId(), model: useId(), url: useId(), models: useId() };
+  const ids = { key: useId(), model: useId(), url: useId() };
   const provider = providers.find((p) => p.id === draft.provider);
   const update = (patch: Partial<AIConnection>) => {
     setSaved(false);
@@ -149,15 +149,12 @@ export function SettingsPage() {
               <div className="flex gap-2">
                 <Input
                   id={ids.model}
-                  list={ids.models}
                   value={draft.model}
                   onChange={(e) => update({ model: e.target.value })}
                   placeholder="Model ID"
                   spellCheck={false}
+                  autoComplete="off"
                 />
-                <datalist id={ids.models}>
-                  {models.data?.models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                </datalist>
                 <Button type="button" onClick={() => models.mutate()} busy={models.isPending} className="shrink-0">
                   Load models
                 </Button>
@@ -165,7 +162,7 @@ export function SettingsPage() {
             </Field>
             {models.isSuccess && (
               <Select aria-label="Available models" value={draft.model} onChange={(e) => update({ model: e.target.value })}>
-                <option value="">Choose from {models.data.models.length} models</option>
+                <option value="">Pick one of {models.data.models.length} available models</option>
                 {models.data.models.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}

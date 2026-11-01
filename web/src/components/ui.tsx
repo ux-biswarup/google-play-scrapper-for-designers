@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
-import { AlertCircle, Info, Loader2, Star } from "lucide-react";
+import { AlertCircle, ChevronDown, Info, Loader2, Star } from "lucide-react";
 
 const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(" ");
 
@@ -51,11 +51,27 @@ export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputEleme
   return <input {...rest} className={cx(control, width(className), className)} />;
 }
 
+/**
+ * Native select (keyboard and screen-reader friendly) with the browser's arrow replaced by our own,
+ * so it has consistent padding, follows dark mode and looks the same in every browser.
+ */
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
+  const classes = (className ?? "").split(/\s+/).filter(Boolean);
+  const widthClasses = classes.filter((c) => c.startsWith("w-"));
+  const otherClasses = classes.filter((c) => !c.startsWith("w-"));
   return (
-    <select {...rest} className={cx(control, width(className), "pr-8", className)}>
-      {children}
-    </select>
+    <div className={cx("relative", widthClasses.length ? widthClasses.join(" ") : "w-full")}>
+      <select
+        {...rest}
+        className={cx(control, "w-full cursor-pointer appearance-none truncate pr-9", otherClasses.join(" "))}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        aria-hidden
+        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+      />
+    </div>
   );
 }
 
